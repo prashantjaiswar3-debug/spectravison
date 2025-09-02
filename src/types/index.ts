@@ -48,6 +48,9 @@ export type TVScreen = {
   ipAddress: string;
   size: number; // e.g., 55
   type: 'tv';
+  nvrId: string;
 };
 
 export type Device = Camera | NVR | POESwitch | TVScreen;
+
+    

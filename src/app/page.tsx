@@ -129,6 +129,7 @@ const deviceFormSchema = z.discriminatedUnion('deviceType', [
     deviceType: z.literal('tv'),
     ipAddress: z.string().ip({ version: 'v4', message: 'Invalid IPv4 address.' }),
     size: z.coerce.number().int().min(1, { message: 'Screen size must be positive.' }),
+    nvrId: z.string().min(1, { message: 'An NVR must be selected.' }),
   }),
 ]);
 
@@ -152,8 +153,8 @@ const initialPOESwitches: POESwitch[] = [
 ];
 
 const initialTVScreens: TVScreen[] = [
-    { id: 'tv1', type: 'tv', name: 'Lobby TV', ipAddress: '192.168.1.200', location: 'Main Lobby', status: 'active', size: 55 },
-    { id: 'tv2', type: 'tv', name: 'Break Room TV', ipAddress: '192.168.2.201', location: 'Break Room', status: 'inactive', size: 65 },
+    { id: 'tv1', type: 'tv', name: 'Lobby TV', ipAddress: '192.168.1.200', location: 'Main Lobby', status: 'active', size: 55, nvrId: 'nvr1' },
+    { id: 'tv2', type: 'tv', name: 'Break Room TV', ipAddress: '192.168.2.201', location: 'Break Room', status: 'inactive', size: 65, nvrId: 'nvr2' },
 ];
 
 
@@ -218,7 +219,7 @@ export default function Home() {
            form.reset({ ...defaultValues, deviceType, portCount: 8, powerBudget: '' });
           break;
         case 'tv':
-            form.reset({ ...defaultValues, deviceType, ipAddress: '', size: 55 });
+            form.reset({ ...defaultValues, deviceType, ipAddress: '', size: 55, nvrId: '' });
             break;
         default:
              form.reset({deviceType: 'camera', name: '', location: ''});
@@ -461,7 +462,7 @@ export default function Home() {
                     <DeviceTable<POESwitch> data={filteredPoeSwitches} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'poe')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="poe" />
                 </TabsContent>
                  <TabsContent value="tvs">
-                    <DeviceTable<TVScreen> data={filteredTvScreens} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'tv')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="tv" />
+                    <DeviceTable<TVScreen> data={filteredTvScreens} nvrs={nvrs} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'tv')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="tv" />
                 </TabsContent>
                 </>
             ) : (
@@ -822,19 +823,41 @@ export default function Home() {
               )}
 
               {deviceType === 'tv' && (
-                <FormField
-                    control={form.control}
-                    name="size"
-                    render={({ field }) => (
+                <>
+                  <FormField
+                      control={form.control}
+                      name="size"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Screen Size (inches)</FormLabel>
+                          <FormControl>
+                            <Input type="number" placeholder="e.g., 55" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                  />
+                  <FormField
+                      control={form.control}
+                      name="nvrId"
+                      render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Screen Size (inches)</FormLabel>
-                        <FormControl>
-                          <Input type="number" placeholder="e.g., 55" {...field} />
-                        </FormControl>
-                        <FormMessage />
+                          <FormLabel>Associated NVR</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormControl>
+                                  <SelectTrigger>
+                                  <SelectValue placeholder="Select an NVR" />
+                                  </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                  {nvrs.map(n => <SelectItem key={n.id} value={n.id}>{n.name}</SelectItem>)}
+                              </SelectContent>
+                          </Select>
+                          <FormMessage />
                       </FormItem>
-                    )}
-                />
+                      )}
+                  />
+                </>
               )}
 
               <DialogFooter>
@@ -932,6 +955,7 @@ function DeviceTable<T extends Device>({ data, poeSwitches, nvrs, onEdit, onDele
                     {type === 'poe' && <TableHead>Ports</TableHead>}
                     {type === 'poe' && <TableHead>Power Budget</TableHead>}
                     {type === 'tv' && <TableHead>Size</TableHead>}
+                    {type === 'tv' && <TableHead>Associated NVR</TableHead>}
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -961,6 +985,7 @@ function DeviceTable<T extends Device>({ data, poeSwitches, nvrs, onEdit, onDele
                         {item.type === 'poe' && <TableCell>{(item as POESwitch).powerBudget}</TableCell>}
 
                         {item.type === 'tv' && <TableCell>{(item as TVScreen).size}"</TableCell>}
+                        {item.type === 'tv' && <TableCell>{nvrMap[(item as TVScreen).nvrId]}</TableCell>}
                         
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
@@ -1037,3 +1062,5 @@ function DeviceTable<T extends Device>({ data, poeSwitches, nvrs, onEdit, onDele
         </Card>
     );
 }
+
+    
