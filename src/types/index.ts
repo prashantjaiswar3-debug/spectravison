@@ -15,6 +15,8 @@ export type Camera = {
   poePortNumber: number;
   cameraType: 'bullet' | 'dome' | 'ptz';
   quality: number; // in megapixels
+  nvrId: string;
+  nvrChannelNumber: number;
 };
 
 export type NVR = {

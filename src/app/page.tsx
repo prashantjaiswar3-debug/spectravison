@@ -111,6 +111,8 @@ const deviceFormSchema = z.discriminatedUnion('deviceType', [
     poePortNumber: z.coerce.number().int().min(1, { message: 'PoE port number must be at least 1.' }),
     cameraType: z.enum(['bullet', 'dome', 'ptz'], { required_error: 'Camera type is required.' }),
     quality: z.coerce.number().int().min(1, 'Quality must be at least 1MP.').max(15, 'Quality cannot exceed 15MP.'),
+    nvrId: z.string().min(1, { message: 'An NVR must be selected.' }),
+    nvrChannelNumber: z.coerce.number().int().min(1, { message: 'NVR channel number must be at least 1.' }),
   }),
   baseDeviceSchema.extend({
     deviceType: z.literal('nvr'),
@@ -133,10 +135,10 @@ const deviceFormSchema = z.discriminatedUnion('deviceType', [
 type DeviceFormValues = z.infer<typeof deviceFormSchema>;
 
 const initialCameras: CameraType[] = [
-  { id: 'a1b2c3d4', type: 'camera', name: 'Lobby Cam 1', ipAddress: '192.168.1.101', location: 'Main Lobby', installationDate: new Date('2023-01-15'), status: 'active', screenChannelNumber: 1, zone: 'A', poeSwitchId: 'poe1', poePortNumber: 1, cameraType: 'dome', quality: 4 },
-  { id: 'e5f6g7h8', type: 'camera', name: 'Parking Lot Cam', ipAddress: '192.168.1.102', location: 'Exterior Parking', installationDate: new Date('2022-11-20'), status: 'inactive', screenChannelNumber: 2, zone: 'C', poeSwitchId: 'poe1', poePortNumber: 2, cameraType: 'bullet', quality: 5 },
-  { id: 'i9j0k1l2', type: 'camera', name: 'Office Cam 204', ipAddress: '192.168.2.55', location: 'Second Floor, Office 204', installationDate: new Date('2023-05-10'), status: 'active', screenChannelNumber: 3, zone: 'B', poeSwitchId: 'poe2', poePortNumber: 5, cameraType: 'ptz', quality: 8 },
-  { id: 'm3n4o5p6', type: 'camera', name: 'Rooftop East', ipAddress: '192.168.1.108', location: 'Rooftop', installationDate: new Date('2021-08-01'), status: 'error', screenChannelNumber: 4, zone: 'C', poeSwitchId: 'poe2', poePortNumber: 8, cameraType: 'bullet', quality: 3 },
+  { id: 'a1b2c3d4', type: 'camera', name: 'Lobby Cam 1', ipAddress: '192.168.1.101', location: 'Main Lobby', installationDate: new Date('2023-01-15'), status: 'active', screenChannelNumber: 1, zone: 'A', poeSwitchId: 'poe1', poePortNumber: 1, cameraType: 'dome', quality: 4, nvrId: 'nvr1', nvrChannelNumber: 1 },
+  { id: 'e5f6g7h8', type: 'camera', name: 'Parking Lot Cam', ipAddress: '192.168.1.102', location: 'Exterior Parking', installationDate: new Date('2022-11-20'), status: 'inactive', screenChannelNumber: 2, zone: 'C', poeSwitchId: 'poe1', poePortNumber: 2, cameraType: 'bullet', quality: 5, nvrId: 'nvr1', nvrChannelNumber: 2 },
+  { id: 'i9j0k1l2', type: 'camera', name: 'Office Cam 204', ipAddress: '192.168.2.55', location: 'Second Floor, Office 204', installationDate: new Date('2023-05-10'), status: 'active', screenChannelNumber: 3, zone: 'B', poeSwitchId: 'poe2', poePortNumber: 5, cameraType: 'ptz', quality: 8, nvrId: 'nvr2', nvrChannelNumber: 1 },
+  { id: 'm3n4o5p6', type: 'camera', name: 'Rooftop East', ipAddress: '192.168.1.108', location: 'Rooftop', installationDate: new Date('2021-08-01'), status: 'error', screenChannelNumber: 4, zone: 'C', poeSwitchId: 'poe2', poePortNumber: 8, cameraType: 'bullet', quality: 3, nvrId: 'nvr2', nvrChannelNumber: 4 },
 ];
 
 const initialNVRs: NVR[] = [
@@ -207,7 +209,7 @@ export default function Home() {
       // Reset with specific fields for the selected type to avoid lingering values
       switch (deviceType) {
         case 'camera':
-          form.reset({ ...defaultValues, deviceType, ipAddress: '', installationDate: new Date(), screenChannelNumber: 1, zone: '', poeSwitchId: '', poePortNumber: 1, cameraType: 'dome', quality: 4 });
+          form.reset({ ...defaultValues, deviceType, ipAddress: '', installationDate: new Date(), screenChannelNumber: 1, zone: '', poeSwitchId: '', poePortNumber: 1, cameraType: 'dome', quality: 4, nvrId: '', nvrChannelNumber: 1 });
           break;
         case 'nvr':
            form.reset({ ...defaultValues, deviceType, ipAddress: '', storageCapacity: '', channels: 16 });
@@ -450,7 +452,7 @@ export default function Home() {
             {viewMode === 'list' ? (
                 <>
                 <TabsContent value="cameras">
-                    <DeviceTable<CameraType> data={filteredCameras} poeSwitches={poeSwitches} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'camera')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="camera" />
+                    <DeviceTable<CameraType> data={filteredCameras} poeSwitches={poeSwitches} nvrs={nvrs} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'camera')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="camera" />
                 </TabsContent>
                 <TabsContent value="nvrs">
                     <DeviceTable<NVR> data={filteredNvrs} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'nvr')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="nvr" />
@@ -684,6 +686,41 @@ export default function Home() {
                         )}
                     />
                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                        control={form.control}
+                        name="nvrId"
+                        render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>NVR</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                    <SelectTrigger>
+                                    <SelectValue placeholder="Select an NVR" />
+                                    </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    {nvrs.map(n => <SelectItem key={n.id} value={n.id}>{n.name}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
+                     <FormField
+                        control={form.control}
+                        name="nvrChannelNumber"
+                        render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>NVR Channel</FormLabel>
+                            <FormControl>
+                                <Input type="number" placeholder="e.g., 3" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
+                 </div>
                  <FormField
                     control={form.control}
                     name="installationDate"
@@ -846,6 +883,7 @@ export default function Home() {
 interface DeviceTableProps<T extends Device> {
     data: T[];
     poeSwitches?: POESwitch[];
+    nvrs?: NVR[];
     onEdit?: (item: T) => void;
     onDelete?: (id: string) => void;
     onStatusChange: (item: T, newStatus: boolean) => void;
@@ -855,7 +893,7 @@ interface DeviceTableProps<T extends Device> {
     type: DeviceType;
 }
 
-function DeviceTable<T extends Device>({ data, poeSwitches, onEdit, onDelete, onStatusChange, onPing, pinging, getStatusBadgeVariant, type }: DeviceTableProps<T>) {
+function DeviceTable<T extends Device>({ data, poeSwitches, nvrs, onEdit, onDelete, onStatusChange, onPing, pinging, getStatusBadgeVariant, type }: DeviceTableProps<T>) {
 
     const poeSwitchMap = useMemo(() => {
         if (!poeSwitches) return {};
@@ -864,6 +902,14 @@ function DeviceTable<T extends Device>({ data, poeSwitches, onEdit, onDelete, on
             return acc;
         }, {} as Record<string, string>);
     }, [poeSwitches]);
+
+    const nvrMap = useMemo(() => {
+        if (!nvrs) return {};
+        return nvrs.reduce((acc, nvr) => {
+            acc[nvr.id] = nvr.name;
+            return acc;
+        }, {} as Record<string, string>);
+    }, [nvrs]);
 
     return (
         <Card>
@@ -880,6 +926,7 @@ function DeviceTable<T extends Device>({ data, poeSwitches, onEdit, onDelete, on
                     {type === 'camera' && <TableHead>Quality</TableHead>}
                     {type === 'camera' && <TableHead>Zone</TableHead>}
                     {type === 'camera' && <TableHead>PoE Port</TableHead>}
+                    {type === 'camera' && <TableHead>NVR Channel</TableHead>}
                     {type === 'nvr' && <TableHead>Storage</TableHead>}
                     {type === 'nvr' && <TableHead>Channels</TableHead>}
                     {type === 'poe' && <TableHead>Ports</TableHead>}
@@ -905,6 +952,7 @@ function DeviceTable<T extends Device>({ data, poeSwitches, onEdit, onDelete, on
                         {item.type === 'camera' && <TableCell>{(item as CameraType).quality}MP</TableCell>}
                         {item.type === 'camera' && <TableCell>{(item as CameraType).zone}</TableCell>}
                         {item.type === 'camera' && <TableCell>{poeSwitchMap[(item as CameraType).poeSwitchId]}:{(item as CameraType).poePortNumber}</TableCell>}
+                        {item.type === 'camera' && <TableCell>{nvrMap[(item as CameraType).nvrId]}:{(item as CameraType).nvrChannelNumber}</TableCell>}
 
                         {item.type === 'nvr' && <TableCell>{(item as NVR).storageCapacity}</TableCell>}
                         {item.type === 'nvr' && <TableCell>{(item as NVR).channels}</TableCell>}
