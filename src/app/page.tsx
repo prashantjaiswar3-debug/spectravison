@@ -370,7 +370,7 @@ export default function Home() {
     const printWindow = window.open('', '', 'height=400,width=600');
     if (printWindow && stickerRef.current) {
         printWindow.document.write('<html><head><title>Print Sticker</title>');
-        printWindow.document.write('<style>@media print { body { -webkit-print-color-adjust: exact; } @page { size: 3in 2in; margin: 0; } }</style>');
+        printWindow.document.write('<style>@media print { body { -webkit-print-color-adjust: exact; color-adjust: exact; } @page { size: 3in 2in; margin: 0; } } body { margin: 0; font-family: sans-serif; } .sticker { width: 288px; height: 192px; box-sizing: border-box; border: 1px solid #000; padding: 8px; display: flex; flex-direction: column; justify-content: space-between; background: white; color: black; } .header { text-align: center; border-bottom: 1px solid #000; padding-bottom: 4px; margin-bottom: 4px; } .title { font-weight: bold; font-size: 1.1rem; } .location { font-size: 0.8rem; } .details { font-size: 0.8rem; } .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap-x: 8px; gap-y: 2px; } .detail-item { display: flex; justify-content: space-between; border-bottom: 1px dotted #ccc; padding-bottom: 1px; } .detail-item span:first-child { font-weight: 500; } </style>');
         printWindow.document.write('</head><body style="margin: 0; font-family: sans-serif;">');
         printWindow.document.write(stickerRef.current.innerHTML);
         printWindow.document.write('</body></html>');
@@ -387,7 +387,7 @@ export default function Home() {
     const printWindow = window.open('', '', 'height=800,width=800');
     if (printWindow) {
       printWindow.document.write('<html><head><title>All Device Stickers</title>');
-      printWindow.document.write('<style>@media print { body { -webkit-print-color-adjust: exact; } } body { font-family: sans-serif; } .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(288px, 1fr)); gap: 0.5rem; } .sticker { width: 288px; height: 192px; border: 1px dashed #999; padding: 0.5rem; display: flex; flex-direction: column; justify-content: space-between; page-break-inside: avoid; box-sizing: border-box; } .header { text-align: center; } .title { font-weight: bold; font-size: 1.1rem; margin-bottom: 0.1rem; } .location { font-size: 0.8rem; color: #555; } .details { font-size: 0.8rem; } .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap-x: 0.5rem; gap-y: 0.25rem; } .detail-item { display: flex; justify-content: space-between; } .detail-item span:first-child { font-weight: 500; color: #333; } .detail-item span:last-child { color: #555; } </style>');
+      printWindow.document.write('<style>@media print { body { -webkit-print-color-adjust: exact; color-adjust: exact; } } body { font-family: sans-serif; } .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(288px, 1fr)); gap: 0.5rem; } .sticker { width: 288px; height: 192px; box-sizing: border-box; border: 1px solid #000; padding: 8px; display: flex; flex-direction: column; justify-content: space-between; page-break-inside: avoid; background: white; color: black; } .header { text-align: center; border-bottom: 1px solid #000; padding-bottom: 4px; margin-bottom: 4px; } .title { font-weight: bold; font-size: 1.1rem; } .location { font-size: 0.8rem; } .details { font-size: 0.8rem; } .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap-x: 8px; gap-y: 2px; } .detail-item { display: flex; justify-content: space-between; border-bottom: 1px dotted #ccc; padding-bottom: 1px; } .detail-item span:first-child { font-weight: 500; } </style>');
       printWindow.document.write('</head><body>');
       printWindow.document.write('<h1>All Device Stickers</h1><div class="grid">');
 
@@ -1010,7 +1010,7 @@ export default function Home() {
           </DialogHeader>
           {stickerDevice && (
             <>
-                <div ref={stickerRef} className="p-4 bg-white text-black w-[288px] h-[192px] mx-auto flex flex-col justify-between border border-dashed border-gray-400" dangerouslySetInnerHTML={{ __html: renderDeviceSticker(stickerDevice) }}>
+                <div ref={stickerRef} className="sticker" dangerouslySetInnerHTML={{ __html: renderDeviceSticker(stickerDevice) }}>
                 </div>
                 <DialogFooter className="mt-4">
                     <Button variant="outline" onClick={handlePrintSticker}><Printer className="mr-2"/>Print</Button>
