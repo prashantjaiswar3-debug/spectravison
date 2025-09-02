@@ -595,7 +595,7 @@ export default function Home() {
                                 <FormControl>
                                     <SelectTrigger>
                                         <SelectValue placeholder="Select a type" />
-                                    </Trigger>
+                                    </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
                                     <SelectItem value="bullet">Bullet</SelectItem>
