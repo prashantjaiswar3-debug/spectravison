@@ -13,6 +13,8 @@ export type Camera = {
   zone: string;
   poeSwitchId: string;
   poePortNumber: number;
+  cameraType: 'bullet' | 'dome' | 'ptz';
+  quality: number; // in megapixels
 };
 
 export type NVR = {

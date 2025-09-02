@@ -109,6 +109,8 @@ const deviceFormSchema = z.discriminatedUnion('deviceType', [
     zone: z.string().min(1, { message: 'Zone is required.' }),
     poeSwitchId: z.string().min(1, { message: 'A PoE switch must be selected.' }),
     poePortNumber: z.coerce.number().int().min(1, { message: 'PoE port number must be at least 1.' }),
+    cameraType: z.enum(['bullet', 'dome', 'ptz'], { required_error: 'Camera type is required.' }),
+    quality: z.coerce.number().int().min(1, 'Quality must be at least 1MP.').max(15, 'Quality cannot exceed 15MP.'),
   }),
   baseDeviceSchema.extend({
     deviceType: z.literal('nvr'),
@@ -131,10 +133,10 @@ const deviceFormSchema = z.discriminatedUnion('deviceType', [
 type DeviceFormValues = z.infer<typeof deviceFormSchema>;
 
 const initialCameras: CameraType[] = [
-  { id: 'a1b2c3d4', type: 'camera', name: 'Lobby Cam 1', ipAddress: '192.168.1.101', location: 'Main Lobby', installationDate: new Date('2023-01-15'), status: 'active', screenChannelNumber: 1, zone: 'A', poeSwitchId: 'poe1', poePortNumber: 1 },
-  { id: 'e5f6g7h8', type: 'camera', name: 'Parking Lot Cam', ipAddress: '192.168.1.102', location: 'Exterior Parking', installationDate: new Date('2022-11-20'), status: 'inactive', screenChannelNumber: 2, zone: 'C', poeSwitchId: 'poe1', poePortNumber: 2 },
-  { id: 'i9j0k1l2', type: 'camera', name: 'Office Cam 204', ipAddress: '192.168.2.55', location: 'Second Floor, Office 204', installationDate: new Date('2023-05-10'), status: 'active', screenChannelNumber: 3, zone: 'B', poeSwitchId: 'poe2', poePortNumber: 5 },
-  { id: 'm3n4o5p6', type: 'camera', name: 'Rooftop East', ipAddress: '192.168.1.108', location: 'Rooftop', installationDate: new Date('2021-08-01'), status: 'error', screenChannelNumber: 4, zone: 'C', poeSwitchId: 'poe2', poePortNumber: 8 },
+  { id: 'a1b2c3d4', type: 'camera', name: 'Lobby Cam 1', ipAddress: '192.168.1.101', location: 'Main Lobby', installationDate: new Date('2023-01-15'), status: 'active', screenChannelNumber: 1, zone: 'A', poeSwitchId: 'poe1', poePortNumber: 1, cameraType: 'dome', quality: 4 },
+  { id: 'e5f6g7h8', type: 'camera', name: 'Parking Lot Cam', ipAddress: '192.168.1.102', location: 'Exterior Parking', installationDate: new Date('2022-11-20'), status: 'inactive', screenChannelNumber: 2, zone: 'C', poeSwitchId: 'poe1', poePortNumber: 2, cameraType: 'bullet', quality: 5 },
+  { id: 'i9j0k1l2', type: 'camera', name: 'Office Cam 204', ipAddress: '192.168.2.55', location: 'Second Floor, Office 204', installationDate: new Date('2023-05-10'), status: 'active', screenChannelNumber: 3, zone: 'B', poeSwitchId: 'poe2', poePortNumber: 5, cameraType: 'ptz', quality: 8 },
+  { id: 'm3n4o5p6', type: 'camera', name: 'Rooftop East', ipAddress: '192.168.1.108', location: 'Rooftop', installationDate: new Date('2021-08-01'), status: 'error', screenChannelNumber: 4, zone: 'C', poeSwitchId: 'poe2', poePortNumber: 8, cameraType: 'bullet', quality: 3 },
 ];
 
 const initialNVRs: NVR[] = [
@@ -205,7 +207,7 @@ export default function Home() {
       // Reset with specific fields for the selected type to avoid lingering values
       switch (deviceType) {
         case 'camera':
-          form.reset({ ...defaultValues, deviceType, ipAddress: '', installationDate: undefined, screenChannelNumber: 1, zone: '', poeSwitchId: '', poePortNumber: 1 });
+          form.reset({ ...defaultValues, deviceType, ipAddress: '', installationDate: undefined, screenChannelNumber: 1, zone: '', poeSwitchId: '', poePortNumber: 1, cameraType: 'dome', quality: 4 });
           break;
         case 'nvr':
            form.reset({ ...defaultValues, deviceType, ipAddress: '', storageCapacity: '', channels: 16 });
@@ -571,6 +573,43 @@ export default function Home() {
                  <div className="grid grid-cols-2 gap-4">
                     <FormField
                         control={form.control}
+                        name="cameraType"
+                        render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Camera Type</FormLabel>
+                             <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select a type" />
+                                    </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    <SelectItem value="bullet">Bullet</SelectItem>
+                                    <SelectItem value="dome">Dome</SelectItem>
+                                    <SelectItem value="ptz">PTZ</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
+                     <FormField
+                        control={form.control}
+                        name="quality"
+                        render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Quality (MP)</FormLabel>
+                            <FormControl>
+                                <Input type="number" placeholder="e.g., 4" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
+                 </div>
+                 <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                        control={form.control}
                         name="zone"
                         render={({ field }) => (
                         <FormItem>
@@ -814,6 +853,8 @@ function DeviceTable<T extends Device>({ data, onEdit, onDelete, onStatusChange,
                     <TableHead>Name</TableHead>
                     {type !== 'poe' && <TableHead>IP Address</TableHead>}
                     <TableHead>Location</TableHead>
+                    {type === 'camera' && <TableHead>Type</TableHead>}
+                    {type === 'camera' && <TableHead>Quality</TableHead>}
                     {type === 'camera' && <TableHead>Installed</TableHead>}
                     {type === 'camera' && <TableHead>Zone</TableHead>}
                     {type === 'camera' && <TableHead>PoE Port</TableHead>}
@@ -838,6 +879,8 @@ function DeviceTable<T extends Device>({ data, onEdit, onDelete, onStatusChange,
                         {item.type !== 'poe' && <TableCell>{'ipAddress' in item ? item.ipAddress: ''}</TableCell>}
                         <TableCell>{item.location}</TableCell>
                         
+                        {item.type === 'camera' && <TableCell className="capitalize">{item.cameraType}</TableCell>}
+                        {item.type === 'camera' && <TableCell>{item.quality}MP</TableCell>}
                         {item.type === 'camera' && <TableCell>{format(item.installationDate, 'PPP')}</TableCell>}
                         {item.type === 'camera' && <TableCell>{item.zone}</TableCell>}
                         {item.type === 'camera' && <TableCell>{item.poeSwitchId}:{item.poePortNumber}</TableCell>}
@@ -913,7 +956,7 @@ function DeviceTable<T extends Device>({ data, onEdit, onDelete, onStatusChange,
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center h-24">
+                      <TableCell colSpan={10} className="text-center h-24">
                         No devices found.
                       </TableCell>
                     </TableRow>
