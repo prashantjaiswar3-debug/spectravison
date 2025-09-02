@@ -273,7 +273,7 @@ export default function Home() {
             toast({
                 title: `Ping ${device.name}`,
                 description: `Device is now ${newStatus}.`,
-                variant: newStatus === 'error' ? 'destructive' : 'default',
+                variant: newStatus === 'error' ? 'default' : 'default',
             });
         }
     }, 1000 + Math.random() * 1000);
@@ -382,6 +382,43 @@ export default function Home() {
     }
   };
 
+  const handlePrintAllStickers = () => {
+    const printWindow = window.open('', '', 'height=800,width=800');
+    if (printWindow) {
+      printWindow.document.write('<html><head><title>All Device Stickers</title>');
+      printWindow.document.write('<style>@media print { body { -webkit-print-color-adjust: exact; } } body { font-family: sans-serif; } .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(192px, 1fr)); gap: 1rem; } .sticker { width: 192px; height: 128px; border: 1px dashed #999; padding: 0.5rem; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; page-break-inside: avoid; } .title { font-weight: bold; font-size: 1rem; margin-bottom: 0.25rem; } .location { font-size: 0.75rem; margin-bottom: 0.5rem; } </style>');
+      printWindow.document.write('</head><body>');
+      printWindow.document.write('<h1>All Device Stickers</h1><div class="grid">');
+
+      allDevices.forEach(device => {
+        const qrCodeContainer = document.createElement('div');
+        const qrCodeComponent = <QRCode value={device.id} size={64} />;
+        
+        // This is a trick to get the SVG string from a React component
+        const dummyDiv = document.createElement('div');
+        const ReactDOMServer = require('react-dom/server');
+        dummyDiv.innerHTML = ReactDOMServer.renderToString(qrCodeComponent);
+        const svgString = dummyDiv.innerHTML;
+
+        printWindow.document.write(
+          `<div class="sticker">
+            <h3 class="title">${device.name}</h3>
+            <p class="location">${device.location}</p>
+            ${svgString}
+          </div>`
+        );
+      });
+      
+      printWindow.document.write('</div></body></html>');
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => {
+          printWindow.print();
+          printWindow.close();
+      }, 500);
+    }
+  };
+
 
   const filterDevices = <T extends Device>(devices: T[], term: string, status: 'all' | DeviceStatus) => {
     return devices.filter(device => 
@@ -436,6 +473,9 @@ export default function Home() {
             <h1 className="text-3xl font-bold tracking-tight">CCTV Dashboard</h1>
           </div>
           <div className="flex gap-2">
+            <Button onClick={handlePrintAllStickers} variant="outline">
+              <Printer /> Print All Stickers
+            </Button>
             <Button onClick={handleGenerateReport} variant="outline">
               <FileText /> Generate Report
             </Button>
