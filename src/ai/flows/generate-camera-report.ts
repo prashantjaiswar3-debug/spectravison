@@ -29,7 +29,7 @@ const prompt = ai.definePrompt({
   name: 'generateCameraReportPrompt',
   input: {schema: GenerateCameraReportInputSchema},
   output: {schema: GenerateCameraReportOutputSchema},
-  prompt: `You are an expert security system administrator. Analyze the provided CCTV camera data and generate a report that highlights cameras requiring attention or upgrades. Do not mention installation date as it's not provided.
+  prompt: `You are an expert security system administrator. Analyze the provided CCTV camera data and generate a report that highlights cameras requiring attention or upgrades. The 'installationDate' field is not provided in the data, so do not mention it in your report.
 
 Camera Data: {{{cameraData}}}
 
