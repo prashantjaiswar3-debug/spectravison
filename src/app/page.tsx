@@ -136,8 +136,8 @@ const initialNVRs: NVR[] = [
 ];
 
 const initialPOESwitches: POESwitch[] = [
-  { id: 'poe1', name: 'Lobby Switch', ipAddress: '192.168.1.20', location: '1st Floor IT Closet', status: 'active', portCount: 8, powerBudget: '120W' },
-  { id: 'poe2', name: 'Office Switch', ipAddress: '192.168.2.20', location: '2nd Floor IT Closet', status: 'active', portCount: 16, powerBudget: '250W' },
+  { id: 'poe1', name: 'Lobby Switch', location: '1st Floor IT Closet', status: 'active', portCount: 8, powerBudget: '120W' },
+  { id: 'poe2', name: 'Office Switch', location: '2nd Floor IT Closet', status: 'active', portCount: 16, powerBudget: '250W' },
 ];
 
 const locationCoordinates: Record<string, { top: string; left: string }> = {
@@ -199,6 +199,14 @@ export default function Home() {
   const allDevices: Device[] = useMemo(() => [...cameras, ...nvrs, ...poeSwitches], [cameras, nvrs, poeSwitches]);
 
   const handlePing = (device: Device) => {
+    if (!('ipAddress' in device)) {
+        toast({
+            title: `Ping ${device.name}`,
+            description: `This device does not have an IP address to ping.`,
+            variant: 'destructive',
+        });
+        return;
+    }
     setPinging(prev => ({...prev, [device.id]: true}));
     
     // Simulate network delay
@@ -319,8 +327,7 @@ export default function Home() {
     return poeSwitches.filter(sw => 
         (statusFilter === 'all' || sw.status === statusFilter) &&
         (sw.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-         sw.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
-         sw.ipAddress.includes(searchTerm))
+         sw.location.toLowerCase().includes(searchTerm.toLowerCase()))
     ).sort((a, b) => a.name.localeCompare(b.name));
   }, [poeSwitches, searchTerm, statusFilter]);
 
@@ -439,7 +446,7 @@ export default function Home() {
                                                     {getDeviceIcon(device)}
                                                     <div>
                                                         <p className="font-bold">{device.name}</p>
-                                                        <p className="text-sm text-muted-foreground">{device.ipAddress}</p>
+                                                        {'ipAddress' in device && <p className="text-sm text-muted-foreground">{device.ipAddress}</p>}
                                                         <p className="text-sm capitalize">Status: {device.status}</p>
                                                     </div>
                                                 </div>
@@ -610,7 +617,7 @@ function DeviceTable<T extends Device>({ data, onEdit, onDelete, onStatusChange,
                   <TableRow>
                     <TableHead>Status</TableHead>
                     <TableHead>Name</TableHead>
-                    <TableHead>IP Address</TableHead>
+                    {type !== 'poe' && <TableHead>IP Address</TableHead>}
                     <TableHead>Location</TableHead>
                     {type === 'camera' && <TableHead>Installed</TableHead>}
                     {type === 'nvr' && <TableHead>Storage</TableHead>}
@@ -630,7 +637,7 @@ function DeviceTable<T extends Device>({ data, onEdit, onDelete, onStatusChange,
                           </Badge>
                         </TableCell>
                         <TableCell className="font-medium">{item.name}</TableCell>
-                        <TableCell>{item.ipAddress}</TableCell>
+                        {type !== 'poe' && <TableCell>{(item as CameraType | NVR).ipAddress}</TableCell>}
                         <TableCell>{item.location}</TableCell>
                         
                         {isCamera(item) && <TableCell>{format((item as CameraType).installationDate, 'PPP')}</TableCell>}
@@ -651,12 +658,12 @@ function DeviceTable<T extends Device>({ data, onEdit, onDelete, onStatusChange,
                             <TooltipProvider>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
-                                        <Button variant="ghost" size="icon" onClick={() => onPing(item)} disabled={pinging[item.id]}>
+                                        <Button variant="ghost" size="icon" onClick={() => onPing(item)} disabled={pinging[item.id] || !('ipAddress' in item)}>
                                             {pinging[item.id] ? <Loader2 className="animate-spin" /> : item.status === 'error' ? <WifiOff/> : <Wifi/>}
                                         </Button>
                                     </TooltipTrigger>
                                     <TooltipContent>
-                                        <p>Ping {item.name}</p>
+                                        {'ipAddress' in item ? <p>Ping {item.name}</p> : <p>No IP to ping</p>}
                                     </TooltipContent>
                                 </Tooltip>
                             </TooltipProvider>

@@ -22,7 +22,6 @@ export type NVR = {
 export type POESwitch = {
   id: string;
   name: string;
-  ipAddress: string;
   location: string;
   status: DeviceStatus;
   portCount: number;
