@@ -7,7 +7,6 @@ export type Camera = {
   location: string;
   installationDate: Date;
   status: DeviceStatus;
-  firmwareVersion: string;
 };
 
 export type NVR = {

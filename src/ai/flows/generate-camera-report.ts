@@ -12,12 +12,12 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const GenerateCameraReportInputSchema = z.object({
-  cameraData: z.string().describe('A stringified JSON array of camera objects, each containing details like name, IP address, location, status, installation date, and firmware version.'),
+  cameraData: z.string().describe('A stringified JSON array of camera objects, each containing details like name, IP address, location, status, and installation date.'),
 });
 export type GenerateCameraReportInput = z.infer<typeof GenerateCameraReportInputSchema>;
 
 const GenerateCameraReportOutputSchema = z.object({
-  report: z.string().describe('A detailed report analyzing the camera data, highlighting cameras requiring attention, upgrades, or with outdated firmware.'),
+  report: z.string().describe('A detailed report analyzing the camera data, highlighting cameras requiring attention or upgrades.'),
 });
 export type GenerateCameraReportOutput = z.infer<typeof GenerateCameraReportOutputSchema>;
 
@@ -29,7 +29,7 @@ const prompt = ai.definePrompt({
   name: 'generateCameraReportPrompt',
   input: {schema: GenerateCameraReportInputSchema},
   output: {schema: GenerateCameraReportOutputSchema},
-  prompt: `You are an expert security system administrator. Analyze the provided CCTV camera data and generate a report that highlights cameras requiring attention, upgrades, or with outdated firmware.
+  prompt: `You are an expert security system administrator. Analyze the provided CCTV camera data and generate a report that highlights cameras requiring attention or upgrades.
 
 Camera Data: {{{cameraData}}}
 

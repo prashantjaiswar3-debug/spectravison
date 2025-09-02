@@ -90,7 +90,6 @@ const cameraFormSchema = z.object({
   name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
   ipAddress: z.string().ip({ version: 'v4', message: 'Invalid IPv4 address.' }),
   location: z.string().min(2, { message: 'Location must be at least 2 characters.' }),
-  firmwareVersion: z.string().min(1, { message: 'Firmware version is required.' }),
   installationDate: z.date({
     required_error: 'An installation date is required.',
   }),
@@ -104,7 +103,6 @@ const initialCameras: CameraType[] = [
     location: 'Main Lobby',
     installationDate: new Date('2023-01-15'),
     status: 'active',
-    firmwareVersion: 'v1.2.3',
   },
   {
     id: 'e5f6g7h8',
@@ -113,7 +111,6 @@ const initialCameras: CameraType[] = [
     location: 'Exterior Parking',
     installationDate: new Date('2022-11-20'),
     status: 'inactive',
-    firmwareVersion: 'v1.1.0',
   },
   {
     id: 'i9j0k1l2',
@@ -122,7 +119,6 @@ const initialCameras: CameraType[] = [
     location: 'Second Floor, Office 204',
     installationDate: new Date('2023-05-10'),
     status: 'active',
-    firmwareVersion: 'v1.3.0',
   },
   {
     id: 'm3n4o5p6',
@@ -131,7 +127,6 @@ const initialCameras: CameraType[] = [
     location: 'Rooftop',
     installationDate: new Date('2021-08-01'),
     status: 'error',
-    firmwareVersion: 'v1.0.5',
   },
 ];
 
@@ -179,7 +174,6 @@ export default function Home() {
       name: '',
       ipAddress: '',
       location: '',
-      firmwareVersion: '',
       installationDate: undefined,
     }
   });
@@ -190,7 +184,6 @@ export default function Home() {
         name: editingCamera.name,
         ipAddress: editingCamera.ipAddress,
         location: editingCamera.location,
-        firmwareVersion: editingCamera.firmwareVersion,
         installationDate: editingCamera.installationDate,
       });
     } else {
@@ -198,7 +191,6 @@ export default function Home() {
         name: '',
         ipAddress: '',
         location: '',
-        firmwareVersion: '',
         installationDate: undefined,
       });
     }
@@ -219,7 +211,7 @@ export default function Home() {
              setter(prev => prev.map(d => d.id === id ? {...d, status: newStatus} : d));
         };
 
-        if ('firmwareVersion' in device) { // is Camera
+        if ('installationDate' in device) { // is Camera
             updateDevice(setCameras, device.id);
         } else if ('storageCapacity' in device) { // is NVR
             updateDevice(setNvrs, device.id);
@@ -274,7 +266,7 @@ export default function Home() {
          setter(prev => prev.map(d => d.id === id ? {...d, status} : d));
     };
 
-    if ('firmwareVersion' in device) { // is Camera
+    if ('installationDate' in device) { // is Camera
         updateDevice(setCameras, device.id);
     } else if ('storageCapacity' in device) { // is NVR
         updateDevice(setNvrs, device.id);
@@ -345,7 +337,7 @@ export default function Home() {
   }
   
   const getDeviceIcon = (device: Device) => {
-    if ('firmwareVersion' in device) return <Camera className="w-5 h-5" />;
+    if ('installationDate' in device) return <Camera className="w-5 h-5" />;
     if ('storageCapacity' in device) return <Server className="w-5 h-5" />;
     if ('portCount' in device) return <SwitchIcon className="w-5 h-5" />;
     return null;
@@ -516,19 +508,6 @@ export default function Home() {
               />
               <FormField
                 control={form.control}
-                name="firmwareVersion"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Firmware Version</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g., v2.1.4" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
                 name="installationDate"
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
@@ -633,7 +612,6 @@ function DeviceTable<T extends Device>({ data, onEdit, onDelete, onStatusChange,
                     <TableHead>Name</TableHead>
                     <TableHead>IP Address</TableHead>
                     <TableHead>Location</TableHead>
-                    {type === 'camera' && <TableHead>Firmware</TableHead>}
                     {type === 'camera' && <TableHead>Installed</TableHead>}
                     {type === 'nvr' && <TableHead>Storage</TableHead>}
                     {type === 'nvr' && <TableHead>Channels</TableHead>}
@@ -655,7 +633,6 @@ function DeviceTable<T extends Device>({ data, onEdit, onDelete, onStatusChange,
                         <TableCell>{item.ipAddress}</TableCell>
                         <TableCell>{item.location}</TableCell>
                         
-                        {isCamera(item) && <TableCell>{item.firmwareVersion}</TableCell>}
                         {isCamera(item) && <TableCell>{format((item as CameraType).installationDate, 'PPP')}</TableCell>}
 
                         {isNVR(item) && <TableCell>{item.storageCapacity}</TableCell>}
@@ -727,7 +704,7 @@ function DeviceTable<T extends Device>({ data, onEdit, onDelete, onStatusChange,
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center h-24">
+                      <TableCell colSpan={6} className="text-center h-24">
                         No devices found.
                       </TableCell>
                     </TableRow>
@@ -739,5 +716,3 @@ function DeviceTable<T extends Device>({ data, onEdit, onDelete, onStatusChange,
         </Card>
     );
 }
-
-    
