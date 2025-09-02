@@ -226,42 +226,56 @@ export default function Home() {
 
   const allDevices: Device[] = useMemo(() => [...cameras, ...nvrs, ...poeSwitches, ...tvScreens], [cameras, nvrs, poeSwitches, tvScreens]);
 
-  const handlePing = (device: Device) => {
+  const updateDeviceById = useCallback((id: string, updates: Partial<Device>) => {
+    const updater = (prev: any[]) => prev.map(d => d.id === id ? { ...d, ...updates } : d);
+    setCameras(updater);
+    setNvrs(updater);
+    setPoeSwitches(updater);
+    setTvScreens(updater);
+  }, []);
+
+  const handlePing = useCallback((device: Device, isAutomatic: boolean = false) => {
     if (!('ipAddress' in device) || !device.ipAddress) {
-        toast({
-            title: `Ping ${device.name}`,
-            description: `This device does not have an IP address to ping.`,
-            variant: 'destructive',
-        });
+        if (!isAutomatic) {
+             toast({
+                title: `Ping ${device.name}`,
+                description: `This device does not have an IP address to ping.`,
+                variant: 'destructive',
+            });
+        }
         return;
     }
     setPinging(prev => ({...prev, [device.id]: true}));
     
     setTimeout(() => {
-        const isError = Math.random() < 0.1;
-        const newStatus = isError ? 'error' : 'active';
-
-        const updateDevice = (setter: React.Dispatch<React.SetStateAction<any[]>>, id: string) => {
-             setter(prev => prev.map(d => d.id === id ? {...d, status: newStatus} : d));
-        };
+        const isNowActive = Math.random() > 0.2; // 80% chance to recover from error
+        const newStatus = isNowActive ? 'active' : 'error';
         
         updateDeviceById(device.id, { status: newStatus });
         
         setPinging(prev => ({...prev, [device.id]: false}));
-        toast({
-            title: `Ping ${device.name}`,
-            description: `Device is ${newStatus}.`,
-            variant: newStatus === 'error' ? 'destructive' : 'default',
-        });
+
+        if (!isAutomatic) {
+            toast({
+                title: `Ping ${device.name}`,
+                description: `Device is now ${newStatus}.`,
+                variant: newStatus === 'error' ? 'destructive' : 'default',
+            });
+        }
     }, 1000 + Math.random() * 1000);
-  };
-  
-  const updateDeviceById = (id: string, updates: Partial<Device>) => {
-    setCameras(prev => prev.map(d => d.id === id ? { ...d, ...updates } as CameraType : d));
-    setNvrs(prev => prev.map(d => d.id === id ? { ...d, ...updates } as NVR : d));
-    setPoeSwitches(prev => prev.map(d => d.id === id ? { ...d, ...updates } as POESwitch : d));
-    setTvScreens(prev => prev.map(d => d.id === id ? { ...d, ...updates } as TVScreen : d));
-  };
+  }, [updateDeviceById, toast]);
+
+  useEffect(() => {
+    const pingInterval = setInterval(() => {
+        allDevices.forEach(device => {
+            if (device.status === 'error') {
+                handlePing(device, true);
+            }
+        });
+    }, 10000); // Ping error devices every 10 seconds
+
+    return () => clearInterval(pingInterval);
+  }, [allDevices, handlePing]);
 
 
   const handleFormSubmit = (values: DeviceFormValues) => {
@@ -436,16 +450,16 @@ export default function Home() {
             {viewMode === 'list' ? (
                 <>
                 <TabsContent value="cameras">
-                    <DeviceTable<CameraType> data={filteredCameras} poeSwitches={poeSwitches} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'camera')} onStatusChange={handleStatusChange} onPing={handlePing} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="camera" />
+                    <DeviceTable<CameraType> data={filteredCameras} poeSwitches={poeSwitches} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'camera')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="camera" />
                 </TabsContent>
                 <TabsContent value="nvrs">
-                    <DeviceTable<NVR> data={filteredNvrs} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'nvr')} onStatusChange={handleStatusChange} onPing={handlePing} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="nvr" />
+                    <DeviceTable<NVR> data={filteredNvrs} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'nvr')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="nvr" />
                 </TabsContent>
                 <TabsContent value="poe">
-                    <DeviceTable<POESwitch> data={filteredPoeSwitches} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'poe')} onStatusChange={handleStatusChange} onPing={handlePing} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="poe" />
+                    <DeviceTable<POESwitch> data={filteredPoeSwitches} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'poe')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="poe" />
                 </TabsContent>
                  <TabsContent value="tvs">
-                    <DeviceTable<TVScreen> data={filteredTvScreens} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'tv')} onStatusChange={handleStatusChange} onPing={handlePing} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="tv" />
+                    <DeviceTable<TVScreen> data={filteredTvScreens} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'tv')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="tv" />
                 </TabsContent>
                 </>
             ) : (
@@ -464,7 +478,7 @@ export default function Home() {
                                                 <div className="absolute transform -translate-x-1/2 -translate-y-1/2" style={{ top: coords.top, left: coords.left }}>
                                                     <div className="relative flex items-center justify-center">
                                                          <div className={cn("w-4 h-4 rounded-full", getPinColor(device.status))}></div>
-                                                         <div className={cn("absolute w-4 h-4 rounded-full animate-ping", getPinColor(device.status), {'hidden': !pinging[device.id]})}></div>
+                                                         <div className={cn("absolute w-4 h-4 rounded-full animate-ping", getPinColor(device.status), {'hidden': pinging[device.id] || device.status !== 'error' })}></div>
                                                     </div>
                                                 </div>
                                             </TooltipTrigger>
@@ -581,7 +595,7 @@ export default function Home() {
                                 <FormControl>
                                     <SelectTrigger>
                                         <SelectValue placeholder="Select a type" />
-                                    </SelectTrigger>
+                                    </Trigger>
                                 </FormControl>
                                 <SelectContent>
                                     <SelectItem value="bullet">Bullet</SelectItem>
