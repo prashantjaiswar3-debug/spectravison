@@ -5,7 +5,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 import { format } from 'date-fns';
-import QRCode from 'react-qr-code';
 
 import {
   Camera,
@@ -197,6 +196,10 @@ export default function Home() {
   const { toast } = useToast();
   const stickerRef = useRef<HTMLDivElement>(null);
 
+  const allDevices: Device[] = useMemo(() => [...cameras, ...nvrs, ...poeSwitches, ...tvScreens], [cameras, nvrs, poeSwitches, tvScreens]);
+
+  const poeSwitchMap = useMemo(() => poeSwitches.reduce((acc, sw) => ({ ...acc, [sw.id]: sw.name }), {} as Record<string, string>), [poeSwitches]);
+  const nvrMap = useMemo(() => nvrs.reduce((acc, nvr) => ({ ...acc, [nvr.id]: nvr.name }), {} as Record<string, string>), [nvrs]);
 
   const form = useForm<DeviceFormValues>({
     resolver: zodResolver(deviceFormSchema),
@@ -237,8 +240,6 @@ export default function Home() {
     }
   }, [editingDevice, form, deviceType]);
   
-
-  const allDevices: Device[] = useMemo(() => [...cameras, ...nvrs, ...poeSwitches, ...tvScreens], [cameras, nvrs, poeSwitches, tvScreens]);
 
   const updateDeviceById = useCallback((id: string, updates: Partial<Device>) => {
     const updater = (prev: any[]) => prev.map(d => d.id === id ? { ...d, ...updates } : d);
@@ -370,7 +371,7 @@ export default function Home() {
     if (printWindow && stickerRef.current) {
         printWindow.document.write('<html><head><title>Print Sticker</title>');
         printWindow.document.write('<style>@media print { body { -webkit-print-color-adjust: exact; } @page { size: 3in 2in; margin: 0; } }</style>');
-        printWindow.document.write('</head><body style="margin: 0;">');
+        printWindow.document.write('</head><body style="margin: 0; font-family: sans-serif;">');
         printWindow.document.write(stickerRef.current.innerHTML);
         printWindow.document.write('</body></html>');
         printWindow.document.close();
@@ -386,25 +387,14 @@ export default function Home() {
     const printWindow = window.open('', '', 'height=800,width=800');
     if (printWindow) {
       printWindow.document.write('<html><head><title>All Device Stickers</title>');
-      printWindow.document.write('<style>@media print { body { -webkit-print-color-adjust: exact; } } body { font-family: sans-serif; } .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(192px, 1fr)); gap: 1rem; } .sticker { width: 192px; height: 128px; border: 1px dashed #999; padding: 0.5rem; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; page-break-inside: avoid; } .title { font-weight: bold; font-size: 1rem; margin-bottom: 0.25rem; } .location { font-size: 0.75rem; margin-bottom: 0.5rem; } </style>');
+      printWindow.document.write('<style>@media print { body { -webkit-print-color-adjust: exact; } } body { font-family: sans-serif; } .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(288px, 1fr)); gap: 0.5rem; } .sticker { width: 288px; height: 192px; border: 1px dashed #999; padding: 0.5rem; display: flex; flex-direction: column; justify-content: space-between; page-break-inside: avoid; box-sizing: border-box; } .header { text-align: center; } .title { font-weight: bold; font-size: 1.1rem; margin-bottom: 0.1rem; } .location { font-size: 0.8rem; color: #555; } .details { font-size: 0.8rem; } .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap-x: 0.5rem; gap-y: 0.25rem; } .detail-item { display: flex; justify-content: space-between; } .detail-item span:first-child { font-weight: 500; color: #333; } .detail-item span:last-child { color: #555; } </style>');
       printWindow.document.write('</head><body>');
       printWindow.document.write('<h1>All Device Stickers</h1><div class="grid">');
 
       allDevices.forEach(device => {
-        const qrCodeContainer = document.createElement('div');
-        const qrCodeComponent = <QRCode value={device.id} size={64} />;
-        
-        // This is a trick to get the SVG string from a React component
-        const dummyDiv = document.createElement('div');
-        const ReactDOMServer = require('react-dom/server');
-        dummyDiv.innerHTML = ReactDOMServer.renderToString(qrCodeComponent);
-        const svgString = dummyDiv.innerHTML;
-
         printWindow.document.write(
           `<div class="sticker">
-            <h3 class="title">${device.name}</h3>
-            <p class="location">${device.location}</p>
-            ${svgString}
+             ${renderDeviceSticker(device)}
           </div>`
         );
       });
@@ -418,6 +408,51 @@ export default function Home() {
       }, 500);
     }
   };
+
+  const renderDeviceSticker = (device: Device | null): string => {
+    if (!device) return '';
+
+    const getDetails = (d: Device) => {
+        let details: Record<string, any> = { ID: d.id.substring(0, 8).toUpperCase() };
+        if ('ipAddress' in d && d.ipAddress) details['IP'] = d.ipAddress;
+
+        switch (d.type) {
+            case 'camera':
+                details = { ...details, NVR: `${nvrMap[d.nvrId]}:${d.nvrChannelNumber}`, PoE: `${poeSwitchMap[d.poeSwitchId]}:${d.poePortNumber}`, Zone: d.zone, Type: d.cameraType, Quality: `${d.quality}MP` };
+                break;
+            case 'nvr':
+                details = { ...details, Storage: d.storageCapacity, Channels: d.channels };
+                break;
+            case 'poe':
+                details = { ...details, Ports: d.portCount, Budget: d.powerBudget };
+                break;
+            case 'tv':
+                details = { ...details, Size: `${d.size}"`, NVR: nvrMap[d.nvrId] };
+                break;
+        }
+        return details;
+    };
+    
+    const detailsObject = getDetails(device);
+
+    return `
+      <div class="header">
+        <div class="title">${device.name}</div>
+        <div class="location">${device.location}</div>
+      </div>
+      <div class="details">
+        <div class="details-grid">
+          ${Object.entries(detailsObject).map(([key, value]) => `
+            <div class="detail-item">
+              <span>${key}:</span>
+              <span>${value}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+};
+
 
 
   const filterDevices = <T extends Device>(devices: T[], term: string, status: 'all' | DeviceStatus) => {
@@ -969,22 +1004,17 @@ export default function Home() {
       </Dialog>
 
       <Dialog open={!!stickerDevice} onOpenChange={(open) => !open && setStickerDevice(null)}>
-        <DialogContent className="sm:max-w-xs">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Print Device Sticker</DialogTitle>
           </DialogHeader>
           {stickerDevice && (
             <>
-              <div ref={stickerRef}>
-                  <div className="p-4 bg-white text-black w-[192px] h-[128px] mx-auto flex flex-col items-center justify-center border border-dashed border-gray-400">
-                    <h3 className="font-bold text-lg leading-tight text-center mb-1">{stickerDevice.name}</h3>
-                    <p className="text-xs text-center mb-2">{stickerDevice.location}</p>
-                    <QRCode value={stickerDevice.id} size={64} />
-                  </div>
-              </div>
-              <DialogFooter className="mt-4">
-                  <Button variant="outline" onClick={handlePrintSticker}><Printer className="mr-2"/>Print</Button>
-              </DialogFooter>
+                <div ref={stickerRef} className="p-4 bg-white text-black w-[288px] h-[192px] mx-auto flex flex-col justify-between border border-dashed border-gray-400" dangerouslySetInnerHTML={{ __html: renderDeviceSticker(stickerDevice) }}>
+                </div>
+                <DialogFooter className="mt-4">
+                    <Button variant="outline" onClick={handlePrintSticker}><Printer className="mr-2"/>Print</Button>
+                </DialogFooter>
             </>
           )}
         </DialogContent>
