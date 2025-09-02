@@ -22,9 +22,10 @@ import {
   List,
   Wifi,
   WifiOff,
+  Tv2,
 } from 'lucide-react';
 
-import type { Camera as CameraType, NVR, POESwitch, Device, DeviceStatus } from '@/types';
+import type { Camera as CameraType, NVR, POESwitch, Device, DeviceStatus, TVScreen, DeviceType } from '@/types';
 import { generateCameraReport } from '@/ai/flows/generate-camera-report';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -76,6 +77,13 @@ import {
   PopoverTrigger,
   PopoverContent,
 } from '@/components/ui/popover';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -86,59 +94,60 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
-const cameraFormSchema = z.object({
+const baseDeviceSchema = z.object({
   name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
-  ipAddress: z.string().ip({ version: 'v4', message: 'Invalid IPv4 address.' }),
   location: z.string().min(2, { message: 'Location must be at least 2 characters.' }),
-  installationDate: z.date({
-    required_error: 'An installation date is required.',
-  }),
+  deviceType: z.enum(['camera', 'nvr', 'poe', 'tv']),
 });
 
+const deviceFormSchema = z.discriminatedUnion('deviceType', [
+  baseDeviceSchema.extend({
+    deviceType: z.literal('camera'),
+    ipAddress: z.string().ip({ version: 'v4', message: 'Invalid IPv4 address.' }),
+    installationDate: z.date({ required_error: 'An installation date is required.' }),
+  }),
+  baseDeviceSchema.extend({
+    deviceType: z.literal('nvr'),
+    ipAddress: z.string().ip({ version: 'v4', message: 'Invalid IPv4 address.' }),
+    storageCapacity: z.string().min(1, { message: 'Storage capacity is required.' }),
+    channels: z.coerce.number().int().min(1, { message: 'Channels must be at least 1.' }),
+  }),
+  baseDeviceSchema.extend({
+    deviceType: z.literal('poe'),
+    portCount: z.coerce.number().int().min(1, { message: 'Port count must be at least 1.' }),
+    powerBudget: z.string().min(1, { message: 'Power budget is required.' }),
+  }),
+  baseDeviceSchema.extend({
+    deviceType: z.literal('tv'),
+    ipAddress: z.string().ip({ version: 'v4', message: 'Invalid IPv4 address.' }),
+    size: z.coerce.number().int().min(1, { message: 'Screen size must be positive.' }),
+  }),
+]);
+
+type DeviceFormValues = z.infer<typeof deviceFormSchema>;
+
 const initialCameras: CameraType[] = [
-  {
-    id: 'a1b2c3d4',
-    name: 'Lobby Cam 1',
-    ipAddress: '192.168.1.101',
-    location: 'Main Lobby',
-    installationDate: new Date('2023-01-15'),
-    status: 'active',
-  },
-  {
-    id: 'e5f6g7h8',
-    name: 'Parking Lot Cam',
-    ipAddress: '192.168.1.102',
-    location: 'Exterior Parking',
-    installationDate: new Date('2022-11-20'),
-    status: 'inactive',
-  },
-  {
-    id: 'i9j0k1l2',
-    name: 'Office Cam 204',
-    ipAddress: '192.168.2.55',
-    location: 'Second Floor, Office 204',
-    installationDate: new Date('2023-05-10'),
-    status: 'active',
-  },
-  {
-    id: 'm3n4o5p6',
-    name: 'Rooftop East',
-    ipAddress: '192.168.1.108',
-    location: 'Rooftop',
-    installationDate: new Date('2021-08-01'),
-    status: 'error',
-  },
+  { id: 'a1b2c3d4', type: 'camera', name: 'Lobby Cam 1', ipAddress: '192.168.1.101', location: 'Main Lobby', installationDate: new Date('2023-01-15'), status: 'active' },
+  { id: 'e5f6g7h8', type: 'camera', name: 'Parking Lot Cam', ipAddress: '192.168.1.102', location: 'Exterior Parking', installationDate: new Date('2022-11-20'), status: 'inactive' },
+  { id: 'i9j0k1l2', type: 'camera', name: 'Office Cam 204', ipAddress: '192.168.2.55', location: 'Second Floor, Office 204', installationDate: new Date('2023-05-10'), status: 'active' },
+  { id: 'm3n4o5p6', type: 'camera', name: 'Rooftop East', ipAddress: '192.168.1.108', location: 'Rooftop', installationDate: new Date('2021-08-01'), status: 'error' },
 ];
 
 const initialNVRs: NVR[] = [
-  { id: 'nvr1', name: 'Main NVR', ipAddress: '192.168.1.50', location: 'Server Room', status: 'active', storageCapacity: '16TB', channels: 16 },
-  { id: 'nvr2', name: 'Backup NVR', ipAddress: '192.168.1.51', location: 'Server Room', status: 'inactive', storageCapacity: '8TB', channels: 8 },
+  { id: 'nvr1', type: 'nvr', name: 'Main NVR', ipAddress: '192.168.1.50', location: 'Server Room', status: 'active', storageCapacity: '16TB', channels: 16 },
+  { id: 'nvr2', type: 'nvr', name: 'Backup NVR', ipAddress: '192.168.1.51', location: 'Server Room', status: 'inactive', storageCapacity: '8TB', channels: 8 },
 ];
 
 const initialPOESwitches: POESwitch[] = [
-  { id: 'poe1', name: 'Lobby Switch', location: '1st Floor IT Closet', status: 'active', portCount: 8, powerBudget: '120W' },
-  { id: 'poe2', name: 'Office Switch', location: '2nd Floor IT Closet', status: 'active', portCount: 16, powerBudget: '250W' },
+  { id: 'poe1', type: 'poe', name: 'Lobby Switch', location: '1st Floor IT Closet', status: 'active', portCount: 8, powerBudget: '120W' },
+  { id: 'poe2', type: 'poe', name: 'Office Switch', location: '2nd Floor IT Closet', status: 'active', portCount: 16, powerBudget: '250W' },
 ];
+
+const initialTVScreens: TVScreen[] = [
+    { id: 'tv1', type: 'tv', name: 'Lobby TV', ipAddress: '192.168.1.200', location: 'Main Lobby', status: 'active', size: 55 },
+    { id: 'tv2', type: 'tv', name: 'Break Room TV', ipAddress: '192.168.2.201', location: 'Break Room', status: 'inactive', size: 65 },
+];
+
 
 const locationCoordinates: Record<string, { top: string; left: string }> = {
   "Main Lobby": { top: "30%", left: "25%" },
@@ -148,6 +157,7 @@ const locationCoordinates: Record<string, { top: string; left: string }> = {
   "Server Room": { top: "50%", left: "50%" },
   "1st Floor IT Closet": { top: "60%", left: "40%" },
   "2nd Floor IT Closet": { top: "40%", left: "70%" },
+  "Break Room": { top: "55%", left: "80%" },
 };
 
 
@@ -155,11 +165,12 @@ export default function Home() {
   const [cameras, setCameras] = useState<CameraType[]>(initialCameras);
   const [nvrs, setNvrs] = useState<NVR[]>(initialNVRs);
   const [poeSwitches, setPoeSwitches] = useState<POESwitch[]>(initialPOESwitches);
+  const [tvScreens, setTvScreens] = useState<TVScreen[]>(initialTVScreens);
   
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | DeviceStatus>('all');
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingCamera, setEditingCamera] = useState<CameraType | null>(null);
+  const [editingDevice, setEditingDevice] = useState<Device | null>(null);
   const [isReportDialogOpen, setReportDialogOpen] = useState(false);
   const [reportContent, setReportContent] = useState('');
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
@@ -168,35 +179,46 @@ export default function Home() {
 
   const { toast } = useToast();
 
-  const form = useForm<z.infer<typeof cameraFormSchema>>({
-    resolver: zodResolver(cameraFormSchema),
+  const form = useForm<DeviceFormValues>({
+    resolver: zodResolver(deviceFormSchema),
     defaultValues: {
+      deviceType: 'camera',
       name: '',
-      ipAddress: '',
       location: '',
-      installationDate: undefined,
     }
   });
+  
+  const deviceType = form.watch('deviceType');
 
   useEffect(() => {
-    if (editingCamera) {
-      form.reset({
-        name: editingCamera.name,
-        ipAddress: editingCamera.ipAddress,
-        location: editingCamera.location,
-        installationDate: editingCamera.installationDate,
-      });
+    if (editingDevice) {
+      form.reset(editingDevice as any); // Type assertion is tricky with discriminated union
     } else {
-      form.reset({
+       const defaultValues: Partial<DeviceFormValues> = {
         name: '',
-        ipAddress: '',
         location: '',
-        installationDate: undefined,
-      });
+      };
+      // Reset with specific fields for the selected type to avoid lingering values
+      switch (deviceType) {
+        case 'camera':
+          form.reset({ ...defaultValues, deviceType, ipAddress: '', installationDate: undefined });
+          break;
+        case 'nvr':
+           form.reset({ ...defaultValues, deviceType, ipAddress: '', storageCapacity: '', channels: 16 });
+          break;
+        case 'poe':
+           form.reset({ ...defaultValues, deviceType, portCount: 8, powerBudget: '' });
+          break;
+        case 'tv':
+            form.reset({ ...defaultValues, deviceType, ipAddress: '', size: 55 });
+            break;
+        default:
+             form.reset({deviceType: 'camera', name: '', location: ''});
+      }
     }
-  }, [editingCamera, form]);
+  }, [editingDevice, form, deviceType]);
 
-  const allDevices: Device[] = useMemo(() => [...cameras, ...nvrs, ...poeSwitches], [cameras, nvrs, poeSwitches]);
+  const allDevices: Device[] = useMemo(() => [...cameras, ...nvrs, ...poeSwitches, ...tvScreens], [cameras, nvrs, poeSwitches, tvScreens]);
 
   const handlePing = (device: Device) => {
     if (!('ipAddress' in device)) {
@@ -209,23 +231,15 @@ export default function Home() {
     }
     setPinging(prev => ({...prev, [device.id]: true}));
     
-    // Simulate network delay
     setTimeout(() => {
-        // Simulate a 10% chance of error
         const isError = Math.random() < 0.1;
         const newStatus = isError ? 'error' : 'active';
 
         const updateDevice = (setter: React.Dispatch<React.SetStateAction<any[]>>, id: string) => {
              setter(prev => prev.map(d => d.id === id ? {...d, status: newStatus} : d));
         };
-
-        if ('installationDate' in device) { // is Camera
-            updateDevice(setCameras, device.id);
-        } else if ('storageCapacity' in device) { // is NVR
-            updateDevice(setNvrs, device.id);
-        } else { // is POESwitch
-            updateDevice(setPoeSwitches, device.id);
-        }
+        
+        updateDeviceById(device.id, { status: newStatus });
         
         setPinging(prev => ({...prev, [device.id]: false}));
         toast({
@@ -235,52 +249,64 @@ export default function Home() {
         });
     }, 1000 + Math.random() * 1000);
   };
-
-  const handleFormSubmit = (values: z.infer<typeof cameraFormSchema>) => {
-    if (editingCamera) {
-      setCameras(
-        cameras.map((c) =>
-          c.id === editingCamera.id ? { ...c, ...values, status: c.status } : c
-        )
-      );
-      toast({ title: 'Camera Updated', description: `Successfully updated ${values.name}.` });
-    } else {
-      const newCamera: CameraType = {
-        id: crypto.randomUUID(),
-        status: 'active',
-        ...values,
-      };
-      setCameras([...cameras, newCamera]);
-      toast({ title: 'Camera Added', description: `Successfully added ${values.name}.` });
-    }
-    setIsFormOpen(false);
-    setEditingCamera(null);
+  
+  const updateDeviceById = (id: string, updates: Partial<Device>) => {
+    setCameras(prev => prev.map(d => d.id === id ? { ...d, ...updates } as CameraType : d));
+    setNvrs(prev => prev.map(d => d.id === id ? { ...d, ...updates } as NVR : d));
+    setPoeSwitches(prev => prev.map(d => d.id === id ? { ...d, ...updates } as POESwitch : d));
+    setTvScreens(prev => prev.map(d => d.id === id ? { ...d, ...updates } as TVScreen : d));
   };
 
-  const handleEdit = (camera: CameraType) => {
-    setEditingCamera(camera);
+
+  const handleFormSubmit = (values: DeviceFormValues) => {
+    if (editingDevice) {
+      updateDeviceById(editingDevice.id, values);
+      toast({ title: 'Device Updated', description: `Successfully updated ${values.name}.` });
+    } else {
+      const newDevice = {
+        id: crypto.randomUUID(),
+        status: 'active' as DeviceStatus,
+        ...values
+      };
+
+      switch(newDevice.deviceType) {
+        case 'camera':
+          setCameras(prev => [...prev, newDevice as CameraType]);
+          break;
+        case 'nvr':
+          setNvrs(prev => [...prev, newDevice as NVR]);
+          break;
+        case 'poe':
+          setPoeSwitches(prev => [...prev, newDevice as POESwitch]);
+          break;
+        case 'tv':
+          setTvScreens(prev => [...prev, newDevice as TVScreen]);
+          break;
+      }
+      toast({ title: 'Device Added', description: `Successfully added ${values.name}.` });
+    }
+    setIsFormOpen(false);
+    setEditingDevice(null);
+  };
+
+  const handleEdit = (device: Device) => {
+    setEditingDevice(device);
     setIsFormOpen(true);
   };
 
-  const handleDelete = (id: string, type: 'camera' | 'nvr' | 'poe') => {
-    if (type === 'camera') setCameras(cameras.filter((c) => c.id !== id));
-    // Similarly for NVR and PoE Switch if needed
+  const handleDelete = (id: string, type: DeviceType) => {
+    switch(type) {
+        case 'camera': setCameras(cameras.filter((c) => c.id !== id)); break;
+        case 'nvr': setNvrs(nvrs.filter((n) => n.id !== id)); break;
+        case 'poe': setPoeSwitches(poeSwitches.filter((p) => p.id !== id)); break;
+        case 'tv': setTvScreens(tvScreens.filter((t) => t.id !== id)); break;
+    }
     toast({ title: 'Device Deleted', variant: 'destructive' });
   };
 
   const handleStatusChange = (device: Device, newStatus: boolean) => {
     const status = newStatus ? 'active' : 'inactive';
-     const updateDevice = (setter: React.Dispatch<React.SetStateAction<any[]>>, id: string) => {
-         setter(prev => prev.map(d => d.id === id ? {...d, status} : d));
-    };
-
-    if ('installationDate' in device) { // is Camera
-        updateDevice(setCameras, device.id);
-    } else if ('storageCapacity' in device) { // is NVR
-        updateDevice(setNvrs, device.id);
-    } else { // is POESwitch
-        updateDevice(setPoeSwitches, device.id);
-    }
+    updateDeviceById(device.id, { status });
   };
 
   const handleGenerateReport = useCallback(async () => {
@@ -305,31 +331,19 @@ export default function Home() {
     }
   }, [cameras, toast]);
 
-  const filteredCameras = useMemo(() => {
-    return cameras.filter(camera => 
-        (statusFilter === 'all' || camera.status === statusFilter) &&
-        (camera.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-         camera.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
-         camera.ipAddress.includes(searchTerm))
+  const filterDevices = <T extends Device>(devices: T[], term: string, status: 'all' | DeviceStatus) => {
+    return devices.filter(device => 
+        (status === 'all' || device.status === status) &&
+        (device.name.toLowerCase().includes(term.toLowerCase()) ||
+         device.location.toLowerCase().includes(term.toLowerCase()) ||
+         ('ipAddress' in device && device.ipAddress.includes(term)))
     ).sort((a, b) => a.name.localeCompare(b.name));
-  }, [cameras, searchTerm, statusFilter]);
-
-  const filteredNvrs = useMemo(() => {
-    return nvrs.filter(nvr => 
-        (statusFilter === 'all' || nvr.status === statusFilter) &&
-        (nvr.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-         nvr.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
-         nvr.ipAddress.includes(searchTerm))
-    ).sort((a, b) => a.name.localeCompare(b.name));
-  }, [nvrs, searchTerm, statusFilter]);
-
-  const filteredPoeSwitches = useMemo(() => {
-    return poeSwitches.filter(sw => 
-        (statusFilter === 'all' || sw.status === statusFilter) &&
-        (sw.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-         sw.location.toLowerCase().includes(searchTerm.toLowerCase()))
-    ).sort((a, b) => a.name.localeCompare(b.name));
-  }, [poeSwitches, searchTerm, statusFilter]);
+  };
+  
+  const filteredCameras = useMemo(() => filterDevices(cameras, searchTerm, statusFilter), [cameras, searchTerm, statusFilter]);
+  const filteredNvrs = useMemo(() => filterDevices(nvrs, searchTerm, statusFilter), [nvrs, searchTerm, statusFilter]);
+  const filteredPoeSwitches = useMemo(() => filterDevices(poeSwitches, searchTerm, statusFilter), [poeSwitches, searchTerm, statusFilter]);
+  const filteredTvScreens = useMemo(() => filterDevices(tvScreens, searchTerm, statusFilter), [tvScreens, searchTerm, statusFilter]);
 
 
   const getStatusBadgeVariant = (status: DeviceStatus) => {
@@ -344,10 +358,13 @@ export default function Home() {
   }
   
   const getDeviceIcon = (device: Device) => {
-    if ('installationDate' in device) return <Camera className="w-5 h-5" />;
-    if ('storageCapacity' in device) return <Server className="w-5 h-5" />;
-    if ('portCount' in device) return <SwitchIcon className="w-5 h-5" />;
-    return null;
+    switch (device.type) {
+        case 'camera': return <Camera className="w-5 h-5" />;
+        case 'nvr': return <Server className="w-5 h-5" />;
+        case 'poe': return <SwitchIcon className="w-5 h-5" />;
+        case 'tv': return <Tv2 className="w-5 h-5" />;
+        default: return null;
+    }
   };
   
   const getPinColor = (status: DeviceStatus) => {
@@ -370,7 +387,7 @@ export default function Home() {
             <Button onClick={handleGenerateReport} variant="outline">
               <FileText /> Generate Report
             </Button>
-            <Button onClick={() => { setEditingCamera(null); setIsFormOpen(true); }}>
+            <Button onClick={() => { setEditingDevice(null); form.reset({deviceType: 'camera', name: '', location: ''}); setIsFormOpen(true); }}>
               <Plus /> Add Device
             </Button>
           </div>
@@ -402,6 +419,7 @@ export default function Home() {
                     <TabsTrigger value="cameras"><Camera className="mr-2"/>Cameras ({filteredCameras.length})</TabsTrigger>
                     <TabsTrigger value="nvrs"><Server className="mr-2"/>NVRs ({filteredNvrs.length})</TabsTrigger>
                     <TabsTrigger value="poe"><SwitchIcon className="mr-2"/>PoE Switches ({filteredPoeSwitches.length})</TabsTrigger>
+                    <TabsTrigger value="tvs"><Tv2 className="mr-2"/>TV Screens ({filteredTvScreens.length})</TabsTrigger>
                 </TabsList>
                  <div className="flex items-center gap-2">
                     <Button variant={viewMode === 'list' ? 'secondary' : 'ghost'} size="icon" onClick={() => setViewMode('list')}><List /></Button>
@@ -415,10 +433,13 @@ export default function Home() {
                     <DeviceTable<CameraType> data={filteredCameras} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'camera')} onStatusChange={handleStatusChange} onPing={handlePing} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="camera" />
                 </TabsContent>
                 <TabsContent value="nvrs">
-                    <DeviceTable<NVR> data={filteredNvrs} onStatusChange={handleStatusChange} onPing={handlePing} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="nvr" />
+                    <DeviceTable<NVR> data={filteredNvrs} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'nvr')} onStatusChange={handleStatusChange} onPing={handlePing} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="nvr" />
                 </TabsContent>
                 <TabsContent value="poe">
-                    <DeviceTable<POESwitch> data={filteredPoeSwitches} onStatusChange={handleStatusChange} onPing={handlePing} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="poe" />
+                    <DeviceTable<POESwitch> data={filteredPoeSwitches} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'poe')} onStatusChange={handleStatusChange} onPing={handlePing} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="poe" />
+                </TabsContent>
+                 <TabsContent value="tvs">
+                    <DeviceTable<TVScreen> data={filteredTvScreens} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'tv')} onStatusChange={handleStatusChange} onPing={handlePing} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="tv" />
                 </TabsContent>
                 </>
             ) : (
@@ -465,41 +486,68 @@ export default function Home() {
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>{editingCamera ? 'Edit Camera' : 'Add New Camera'}</DialogTitle>
+            <DialogTitle>{editingDevice ? 'Edit Device' : 'Add New Device'}</DialogTitle>
             <DialogDescription>
-              {editingCamera
-                ? 'Update the details for this camera. NVR and PoE Switch forms coming soon!'
-                : 'Enter the details for the new camera. NVR and PoE Switch forms coming soon!'}
+              {editingDevice
+                ? 'Update the details for this device.'
+                : 'Select a device type and enter its details.'}
             </DialogDescription>
           </DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-4">
+               <FormField
+                control={form.control}
+                name="deviceType"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Device Type</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!!editingDevice}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a device type" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="camera">Camera</SelectItem>
+                        <SelectItem value="nvr">NVR</SelectItem>
+                        <SelectItem value="poe">PoE Switch</SelectItem>
+                        <SelectItem value="tv">TV Screen</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <FormField
                 control={form.control}
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Camera Name</FormLabel>
+                    <FormLabel>Device Name</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g., Lobby Entrance" {...field} />
+                      <Input placeholder="e.g., Lobby Entrance Cam" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="ipAddress"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>IP Address</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g., 192.168.1.100" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              
+              { (deviceType === 'camera' || deviceType === 'nvr' || deviceType === 'tv') && (
+                <FormField
+                    control={form.control}
+                    name="ipAddress"
+                    render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>IP Address</FormLabel>
+                        <FormControl>
+                        <Input placeholder="e.g., 192.168.1.100" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
+              )}
+
               <FormField
                 control={form.control}
                 name="location"
@@ -513,44 +561,126 @@ export default function Home() {
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="installationDate"
-                render={({ field }) => (
-                  <FormItem className="flex flex-col">
-                    <FormLabel>Installation Date</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
+              
+              {deviceType === 'camera' && (
+                 <FormField
+                    control={form.control}
+                    name="installationDate"
+                    render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                        <FormLabel>Installation Date</FormLabel>
+                        <Popover>
+                        <PopoverTrigger asChild>
+                            <FormControl>
+                            <Button
+                                variant="outline"
+                                className={cn(
+                                'w-[240px] pl-3 text-left font-normal',
+                                !field.value && 'text-muted-foreground'
+                                )}
+                            >
+                                {field.value ? format(field.value, 'PPP') : <span>Pick a date</span>}
+                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                            </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                            mode="single"
+                            selected={field.value}
+                            onSelect={field.onChange}
+                            disabled={(date) => date > new Date() || date < new Date('1990-01-01')}
+                            initialFocus
+                            />
+                        </PopoverContent>
+                        </Popover>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
+              )}
+              
+               {deviceType === 'nvr' && (
+                <>
+                  <FormField
+                    control={form.control}
+                    name="storageCapacity"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Storage Capacity</FormLabel>
                         <FormControl>
-                          <Button
-                            variant="outline"
-                            className={cn(
-                              'w-[240px] pl-3 text-left font-normal',
-                              !field.value && 'text-muted-foreground'
-                            )}
-                          >
-                            {field.value ? format(field.value, 'PPP') : <span>Pick a date</span>}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
+                          <Input placeholder="e.g., 16TB" {...field} />
                         </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value}
-                          onSelect={field.onChange}
-                          disabled={(date) => date > new Date() || date < new Date('1990-01-01')}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="channels"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Channels</FormLabel>
+                        <FormControl>
+                          <Input type="number" placeholder="e.g., 16" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </>
+              )}
+              
+              {deviceType === 'poe' && (
+                 <>
+                  <FormField
+                    control={form.control}
+                    name="portCount"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Port Count</FormLabel>
+                        <FormControl>
+                          <Input type="number" placeholder="e.g., 8" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="powerBudget"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Power Budget</FormLabel>
+                        <FormControl>
+                          <Input placeholder="e.g., 120W" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </>
+              )}
+
+              {deviceType === 'tv' && (
+                <FormField
+                    control={form.control}
+                    name="size"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Screen Size (inches)</FormLabel>
+                        <FormControl>
+                          <Input type="number" placeholder="e.g., 55" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                />
+              )}
+
               <DialogFooter>
                 <Button type="button" variant="ghost" onClick={() => setIsFormOpen(false)}>Cancel</Button>
-                <Button type="submit">Save Camera</Button>
+                <Button type="submit">Save Device</Button>
               </DialogFooter>
             </form>
           </Form>
@@ -599,14 +729,10 @@ interface DeviceTableProps<T extends Device> {
     onPing: (item: T) => void;
     pinging: Record<string, boolean>;
     getStatusBadgeVariant: (status: DeviceStatus) => string;
-    type: 'camera' | 'nvr' | 'poe';
+    type: DeviceType;
 }
 
 function DeviceTable<T extends Device>({ data, onEdit, onDelete, onStatusChange, onPing, pinging, getStatusBadgeVariant, type }: DeviceTableProps<T>) {
-    
-    const isCamera = (item: Device): item is CameraType => type === 'camera';
-    const isNVR = (item: Device): item is NVR => type === 'nvr';
-    const isPOESwitch = (item: Device): item is POESwitch => type === 'poe';
 
     return (
         <Card>
@@ -624,6 +750,7 @@ function DeviceTable<T extends Device>({ data, onEdit, onDelete, onStatusChange,
                     {type === 'nvr' && <TableHead>Channels</TableHead>}
                     {type === 'poe' && <TableHead>Ports</TableHead>}
                     {type === 'poe' && <TableHead>Power Budget</TableHead>}
+                    {type === 'tv' && <TableHead>Size</TableHead>}
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -637,16 +764,18 @@ function DeviceTable<T extends Device>({ data, onEdit, onDelete, onStatusChange,
                           </Badge>
                         </TableCell>
                         <TableCell className="font-medium">{item.name}</TableCell>
-                        {type !== 'poe' && <TableCell>{(item as CameraType | NVR).ipAddress}</TableCell>}
+                        {item.type !== 'poe' && <TableCell>{item.ipAddress}</TableCell>}
                         <TableCell>{item.location}</TableCell>
                         
-                        {isCamera(item) && <TableCell>{format((item as CameraType).installationDate, 'PPP')}</TableCell>}
+                        {item.type === 'camera' && <TableCell>{format(item.installationDate, 'PPP')}</TableCell>}
 
-                        {isNVR(item) && <TableCell>{item.storageCapacity}</TableCell>}
-                        {isNVR(item) && <TableCell>{item.channels}</TableCell>}
+                        {item.type === 'nvr' && <TableCell>{item.storageCapacity}</TableCell>}
+                        {item.type === 'nvr' && <TableCell>{item.channels}</TableCell>}
 
-                        {isPOESwitch(item) && <TableCell>{item.portCount}</TableCell>}
-                        {isPOESwitch(item) && <TableCell>{item.powerBudget}</TableCell>}
+                        {item.type === 'poe' && <TableCell>{item.portCount}</TableCell>}
+                        {item.type === 'poe' && <TableCell>{item.powerBudget}</TableCell>}
+
+                        {item.type === 'tv' && <TableCell>{item.size}"</TableCell>}
                         
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
@@ -658,12 +787,12 @@ function DeviceTable<T extends Device>({ data, onEdit, onDelete, onStatusChange,
                             <TooltipProvider>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
-                                        <Button variant="ghost" size="icon" onClick={() => onPing(item)} disabled={pinging[item.id] || !('ipAddress' in item)}>
+                                        <Button variant="ghost" size="icon" onClick={() => onPing(item)} disabled={pinging[item.id] || item.type === 'poe'}>
                                             {pinging[item.id] ? <Loader2 className="animate-spin" /> : item.status === 'error' ? <WifiOff/> : <Wifi/>}
                                         </Button>
                                     </TooltipTrigger>
                                     <TooltipContent>
-                                        {'ipAddress' in item ? <p>Ping {item.name}</p> : <p>No IP to ping</p>}
+                                        {item.type !== 'poe' ? <p>Ping {item.name}</p> : <p>No IP to ping</p>}
                                     </TooltipContent>
                                 </Tooltip>
                             </TooltipProvider>
@@ -675,7 +804,7 @@ function DeviceTable<T extends Device>({ data, onEdit, onDelete, onStatusChange,
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent>
-                                {onEdit && isCamera(item) && (
+                                {onEdit && (
                                     <DropdownMenuItem onClick={() => onEdit(item)}>
                                       <Pencil /> Edit
                                     </DropdownMenuItem>

@@ -1,4 +1,5 @@
 export type DeviceStatus = 'active' | 'inactive' | 'error';
+export type DeviceType = 'camera' | 'nvr' | 'poe' | 'tv';
 
 export type Camera = {
   id: string;
@@ -7,6 +8,7 @@ export type Camera = {
   location: string;
   installationDate: Date;
   status: DeviceStatus;
+  type: 'camera';
 };
 
 export type NVR = {
@@ -17,6 +19,7 @@ export type NVR = {
   status: DeviceStatus;
   storageCapacity: string; // e.g., '8TB'
   channels: number;
+  type: 'nvr';
 };
 
 export type POESwitch = {
@@ -26,6 +29,17 @@ export type POESwitch = {
   status: DeviceStatus;
   portCount: number;
   powerBudget: string; // e.g., '250W'
+  type: 'poe';
 };
 
-export type Device = Camera | NVR | POESwitch;
+export type TVScreen = {
+  id: string;
+  name: string;
+  location: string;
+  status: DeviceStatus;
+  ipAddress: string;
+  size: number; // e.g., 55
+  type: 'tv';
+};
+
+export type Device = Camera | NVR | POESwitch | TVScreen;
