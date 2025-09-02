@@ -370,7 +370,7 @@ export default function Home() {
     const printWindow = window.open('', '', 'height=400,width=600');
     if (printWindow && stickerRef.current) {
         printWindow.document.write('<html><head><title>Print Sticker</title>');
-        printWindow.document.write('<style>@media print { body { -webkit-print-color-adjust: exact; color-adjust: exact; } @page { size: 3in 2in; margin: 0; } } body { margin: 0; font-family: sans-serif; } .sticker { width: 288px; height: 192px; box-sizing: border-box; border: 1px solid #000; padding: 8px; display: flex; flex-direction: column; justify-content: space-between; background: white; color: black; } .header { text-align: center; border-bottom: 1px solid #000; padding-bottom: 4px; margin-bottom: 4px; } .title { font-weight: bold; font-size: 1.1rem; } .location { font-size: 0.8rem; } .details { font-size: 0.8rem; } .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap-x: 8px; gap-y: 2px; } .detail-item { display: flex; justify-content: space-between; border-bottom: 1px dotted #ccc; padding-bottom: 1px; } .detail-item span:first-child { font-weight: 500; } </style>');
+        printWindow.document.write('<style>@media print { body { -webkit-print-color-adjust: exact; color-adjust: exact; } @page { size: 3in 2in; margin: 0; } } body { margin: 0; font-family: sans-serif; display: flex; justify-content: center; align-items: center; } .sticker { width: 288px; height: 192px; box-sizing: border-box; border: 1px solid #000; padding: 8px; display: flex; flex-direction: column; background: white; color: black; font-size: 14px; } .header { text-align: center; border-bottom: 1px solid #000; padding-bottom: 4px; margin-bottom: 8px; } .title { font-weight: bold; font-size: 1.2rem; } .location { font-size: 0.9rem; } .details-grid { display: grid; grid-template-columns: repeat(4, auto); column-gap: 16px; row-gap: 4px; justify-content: start; } .detail-key { font-weight: bold; } .detail-colon { } .detail-value { grid-column: span 1; } </style>');
         printWindow.document.write('</head><body style="margin: 0; font-family: sans-serif;">');
         printWindow.document.write(stickerRef.current.innerHTML);
         printWindow.document.write('</body></html>');
@@ -387,7 +387,7 @@ export default function Home() {
     const printWindow = window.open('', '', 'height=800,width=800');
     if (printWindow) {
       printWindow.document.write('<html><head><title>All Device Stickers</title>');
-      printWindow.document.write('<style>@media print { body { -webkit-print-color-adjust: exact; color-adjust: exact; } } body { font-family: sans-serif; } .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(288px, 1fr)); gap: 0.5rem; } .sticker { width: 288px; height: 192px; box-sizing: border-box; border: 1px solid #000; padding: 8px; display: flex; flex-direction: column; justify-content: space-between; page-break-inside: avoid; background: white; color: black; } .header { text-align: center; border-bottom: 1px solid #000; padding-bottom: 4px; margin-bottom: 4px; } .title { font-weight: bold; font-size: 1.1rem; } .location { font-size: 0.8rem; } .details { font-size: 0.8rem; } .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap-x: 8px; gap-y: 2px; } .detail-item { display: flex; justify-content: space-between; border-bottom: 1px dotted #ccc; padding-bottom: 1px; } .detail-item span:first-child { font-weight: 500; } </style>');
+      printWindow.document.write('<style>@media print { body { -webkit-print-color-adjust: exact; color-adjust: exact; } } body { font-family: sans-serif; } .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(288px, 1fr)); gap: 0.5rem; } .sticker { width: 288px; height: 192px; box-sizing: border-box; border: 1px solid #000; padding: 8px; display: flex; flex-direction: column; page-break-inside: avoid; background: white; color: black; font-size: 14px; } .header { text-align: center; border-bottom: 1px solid #000; padding-bottom: 4px; margin-bottom: 8px; } .title { font-weight: bold; font-size: 1.2rem; } .location { font-size: 0.9rem; } .details-grid { display: grid; grid-template-columns: repeat(4, auto); column-gap: 16px; row-gap: 4px; justify-content: start; } .detail-key { font-weight: bold; } .detail-colon { } .detail-value { grid-column: span 1; } </style>');
       printWindow.document.write('</head><body>');
       printWindow.document.write('<h1>All Device Stickers</h1><div class="grid">');
 
@@ -434,21 +434,19 @@ export default function Home() {
     };
     
     const detailsObject = getDetails(device);
+    const detailsEntries = Object.entries(detailsObject);
 
     return `
       <div class="header">
         <div class="title">${device.name}</div>
         <div class="location">${device.location}</div>
       </div>
-      <div class="details">
-        <div class="details-grid">
-          ${Object.entries(detailsObject).map(([key, value]) => `
-            <div class="detail-item">
-              <span>${key}:</span>
-              <span>${value}</span>
-            </div>
-          `).join('')}
-        </div>
+      <div class="details-grid">
+        ${detailsEntries.map(([key, value]) => `
+            <div class="detail-key">${key}</div>
+            <div class="detail-colon">:</div>
+            <div class="detail-value">${value}</div>
+        `).join('')}
       </div>
     `;
 };
@@ -1010,7 +1008,9 @@ export default function Home() {
           </DialogHeader>
           {stickerDevice && (
             <>
-                <div ref={stickerRef} className="sticker" dangerouslySetInnerHTML={{ __html: renderDeviceSticker(stickerDevice) }}>
+                <div ref={stickerRef} className="sticker-container">
+                    <div className="sticker" dangerouslySetInnerHTML={{ __html: renderDeviceSticker(stickerDevice) }}>
+                    </div>
                 </div>
                 <DialogFooter className="mt-4">
                     <Button variant="outline" onClick={handlePrintSticker}><Printer className="mr-2"/>Print</Button>
