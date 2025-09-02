@@ -207,7 +207,7 @@ export default function Home() {
       // Reset with specific fields for the selected type to avoid lingering values
       switch (deviceType) {
         case 'camera':
-          form.reset({ ...defaultValues, deviceType, ipAddress: '', installationDate: undefined, screenChannelNumber: 1, zone: '', poeSwitchId: '', poePortNumber: 1, cameraType: 'dome', quality: 4 });
+          form.reset({ ...defaultValues, deviceType, ipAddress: '', installationDate: new Date(), screenChannelNumber: 1, zone: '', poeSwitchId: '', poePortNumber: 1, cameraType: 'dome', quality: 4 });
           break;
         case 'nvr':
            form.reset({ ...defaultValues, deviceType, ipAddress: '', storageCapacity: '', channels: 16 });
@@ -227,7 +227,7 @@ export default function Home() {
   const allDevices: Device[] = useMemo(() => [...cameras, ...nvrs, ...poeSwitches, ...tvScreens], [cameras, nvrs, poeSwitches, tvScreens]);
 
   const handlePing = (device: Device) => {
-    if (!('ipAddress' in device)) {
+    if (!('ipAddress' in device) || !device.ipAddress) {
         toast({
             title: `Ping ${device.name}`,
             description: `This device does not have an IP address to ping.`,
@@ -436,7 +436,7 @@ export default function Home() {
             {viewMode === 'list' ? (
                 <>
                 <TabsContent value="cameras">
-                    <DeviceTable<CameraType> data={filteredCameras} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'camera')} onStatusChange={handleStatusChange} onPing={handlePing} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="camera" />
+                    <DeviceTable<CameraType> data={filteredCameras} poeSwitches={poeSwitches} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'camera')} onStatusChange={handleStatusChange} onPing={handlePing} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="camera" />
                 </TabsContent>
                 <TabsContent value="nvrs">
                     <DeviceTable<NVR> data={filteredNvrs} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'nvr')} onStatusChange={handleStatusChange} onPing={handlePing} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="nvr" />
@@ -538,7 +538,7 @@ export default function Home() {
                 )}
               />
               
-              { (deviceType === 'camera' || deviceType === 'nvr' || deviceType === 'tv') && (
+              { (deviceType === 'camera' || deviceType === 'nvr' || deviceType === 'tv') && 'ipAddress' in form.getValues() && (
                 <FormField
                     control={form.control}
                     name="ipAddress"
@@ -831,6 +831,7 @@ export default function Home() {
 
 interface DeviceTableProps<T extends Device> {
     data: T[];
+    poeSwitches?: POESwitch[];
     onEdit?: (item: T) => void;
     onDelete?: (id: string) => void;
     onStatusChange: (item: T, newStatus: boolean) => void;
@@ -840,7 +841,15 @@ interface DeviceTableProps<T extends Device> {
     type: DeviceType;
 }
 
-function DeviceTable<T extends Device>({ data, onEdit, onDelete, onStatusChange, onPing, pinging, getStatusBadgeVariant, type }: DeviceTableProps<T>) {
+function DeviceTable<T extends Device>({ data, poeSwitches, onEdit, onDelete, onStatusChange, onPing, pinging, getStatusBadgeVariant, type }: DeviceTableProps<T>) {
+
+    const poeSwitchMap = useMemo(() => {
+        if (!poeSwitches) return {};
+        return poeSwitches.reduce((acc, sw) => {
+            acc[sw.id] = sw.name;
+            return acc;
+        }, {} as Record<string, string>);
+    }, [poeSwitches]);
 
     return (
         <Card>
@@ -855,7 +864,6 @@ function DeviceTable<T extends Device>({ data, onEdit, onDelete, onStatusChange,
                     <TableHead>Location</TableHead>
                     {type === 'camera' && <TableHead>Type</TableHead>}
                     {type === 'camera' && <TableHead>Quality</TableHead>}
-                    {type === 'camera' && <TableHead>Installed</TableHead>}
                     {type === 'camera' && <TableHead>Zone</TableHead>}
                     {type === 'camera' && <TableHead>PoE Port</TableHead>}
                     {type === 'nvr' && <TableHead>Storage</TableHead>}
@@ -876,22 +884,21 @@ function DeviceTable<T extends Device>({ data, onEdit, onDelete, onStatusChange,
                           </Badge>
                         </TableCell>
                         <TableCell className="font-medium">{item.name}</TableCell>
-                        {item.type !== 'poe' && <TableCell>{'ipAddress' in item ? item.ipAddress: ''}</TableCell>}
+                        {item.type !== 'poe' && 'ipAddress' in item && <TableCell>{item.ipAddress}</TableCell>}
                         <TableCell>{item.location}</TableCell>
                         
-                        {item.type === 'camera' && <TableCell className="capitalize">{item.cameraType}</TableCell>}
-                        {item.type === 'camera' && <TableCell>{item.quality}MP</TableCell>}
-                        {item.type === 'camera' && <TableCell>{format(item.installationDate, 'PPP')}</TableCell>}
-                        {item.type === 'camera' && <TableCell>{item.zone}</TableCell>}
-                        {item.type === 'camera' && <TableCell>{item.poeSwitchId}:{item.poePortNumber}</TableCell>}
+                        {item.type === 'camera' && <TableCell className="capitalize">{(item as CameraType).cameraType}</TableCell>}
+                        {item.type === 'camera' && <TableCell>{(item as CameraType).quality}MP</TableCell>}
+                        {item.type === 'camera' && <TableCell>{(item as CameraType).zone}</TableCell>}
+                        {item.type === 'camera' && <TableCell>{poeSwitchMap[(item as CameraType).poeSwitchId]}:{(item as CameraType).poePortNumber}</TableCell>}
 
-                        {item.type === 'nvr' && <TableCell>{item.storageCapacity}</TableCell>}
-                        {item.type === 'nvr' && <TableCell>{item.channels}</TableCell>}
+                        {item.type === 'nvr' && <TableCell>{(item as NVR).storageCapacity}</TableCell>}
+                        {item.type === 'nvr' && <TableCell>{(item as NVR).channels}</TableCell>}
 
-                        {item.type === 'poe' && <TableCell>{item.portCount}</TableCell>}
-                        {item.type === 'poe' && <TableCell>{item.powerBudget}</TableCell>}
+                        {item.type === 'poe' && <TableCell>{(item as POESwitch).portCount}</TableCell>}
+                        {item.type === 'poe' && <TableCell>{(item as POESwitch).powerBudget}</TableCell>}
 
-                        {item.type === 'tv' && <TableCell>{item.size}"</TableCell>}
+                        {item.type === 'tv' && <TableCell>{(item as TVScreen).size}"</TableCell>}
                         
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
@@ -903,12 +910,12 @@ function DeviceTable<T extends Device>({ data, onEdit, onDelete, onStatusChange,
                             <TooltipProvider>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
-                                        <Button variant="ghost" size="icon" onClick={() => onPing(item)} disabled={pinging[item.id] || item.type === 'poe'}>
+                                        <Button variant="ghost" size="icon" onClick={() => onPing(item)} disabled={pinging[item.id] || !('ipAddress' in item && item.ipAddress)}>
                                             {pinging[item.id] ? <Loader2 className="animate-spin" /> : item.status === 'error' ? <WifiOff/> : <Wifi/>}
                                         </Button>
                                     </TooltipTrigger>
                                     <TooltipContent>
-                                        {item.type !== 'poe' ? <p>Ping {item.name}</p> : <p>No IP to ping</p>}
+                                        {'ipAddress' in item && item.ipAddress ? <p>Ping {item.name}</p> : <p>No IP to ping</p>}
                                     </TooltipContent>
                                 </Tooltip>
                             </TooltipProvider>
