@@ -105,6 +105,10 @@ const deviceFormSchema = z.discriminatedUnion('deviceType', [
     deviceType: z.literal('camera'),
     ipAddress: z.string().ip({ version: 'v4', message: 'Invalid IPv4 address.' }),
     installationDate: z.date({ required_error: 'An installation date is required.' }),
+    screenChannelNumber: z.coerce.number().int().min(1, { message: 'Channel number must be at least 1.' }),
+    zone: z.string().min(1, { message: 'Zone is required.' }),
+    poeSwitchId: z.string().min(1, { message: 'A PoE switch must be selected.' }),
+    poePortNumber: z.coerce.number().int().min(1, { message: 'PoE port number must be at least 1.' }),
   }),
   baseDeviceSchema.extend({
     deviceType: z.literal('nvr'),
@@ -127,10 +131,10 @@ const deviceFormSchema = z.discriminatedUnion('deviceType', [
 type DeviceFormValues = z.infer<typeof deviceFormSchema>;
 
 const initialCameras: CameraType[] = [
-  { id: 'a1b2c3d4', type: 'camera', name: 'Lobby Cam 1', ipAddress: '192.168.1.101', location: 'Main Lobby', installationDate: new Date('2023-01-15'), status: 'active' },
-  { id: 'e5f6g7h8', type: 'camera', name: 'Parking Lot Cam', ipAddress: '192.168.1.102', location: 'Exterior Parking', installationDate: new Date('2022-11-20'), status: 'inactive' },
-  { id: 'i9j0k1l2', type: 'camera', name: 'Office Cam 204', ipAddress: '192.168.2.55', location: 'Second Floor, Office 204', installationDate: new Date('2023-05-10'), status: 'active' },
-  { id: 'm3n4o5p6', type: 'camera', name: 'Rooftop East', ipAddress: '192.168.1.108', location: 'Rooftop', installationDate: new Date('2021-08-01'), status: 'error' },
+  { id: 'a1b2c3d4', type: 'camera', name: 'Lobby Cam 1', ipAddress: '192.168.1.101', location: 'Main Lobby', installationDate: new Date('2023-01-15'), status: 'active', screenChannelNumber: 1, zone: 'A', poeSwitchId: 'poe1', poePortNumber: 1 },
+  { id: 'e5f6g7h8', type: 'camera', name: 'Parking Lot Cam', ipAddress: '192.168.1.102', location: 'Exterior Parking', installationDate: new Date('2022-11-20'), status: 'inactive', screenChannelNumber: 2, zone: 'C', poeSwitchId: 'poe1', poePortNumber: 2 },
+  { id: 'i9j0k1l2', type: 'camera', name: 'Office Cam 204', ipAddress: '192.168.2.55', location: 'Second Floor, Office 204', installationDate: new Date('2023-05-10'), status: 'active', screenChannelNumber: 3, zone: 'B', poeSwitchId: 'poe2', poePortNumber: 5 },
+  { id: 'm3n4o5p6', type: 'camera', name: 'Rooftop East', ipAddress: '192.168.1.108', location: 'Rooftop', installationDate: new Date('2021-08-01'), status: 'error', screenChannelNumber: 4, zone: 'C', poeSwitchId: 'poe2', poePortNumber: 8 },
 ];
 
 const initialNVRs: NVR[] = [
@@ -201,7 +205,7 @@ export default function Home() {
       // Reset with specific fields for the selected type to avoid lingering values
       switch (deviceType) {
         case 'camera':
-          form.reset({ ...defaultValues, deviceType, ipAddress: '', installationDate: undefined });
+          form.reset({ ...defaultValues, deviceType, ipAddress: '', installationDate: undefined, screenChannelNumber: 1, zone: '', poeSwitchId: '', poePortNumber: 1 });
           break;
         case 'nvr':
            form.reset({ ...defaultValues, deviceType, ipAddress: '', storageCapacity: '', channels: 16 });
@@ -336,7 +340,7 @@ export default function Home() {
         (status === 'all' || device.status === status) &&
         (device.name.toLowerCase().includes(term.toLowerCase()) ||
          device.location.toLowerCase().includes(term.toLowerCase()) ||
-         ('ipAddress' in device && device.ipAddress.includes(term)))
+         ('ipAddress' in device && device.ipAddress?.includes(term)))
     ).sort((a, b) => a.name.localeCompare(b.name));
   };
   
@@ -467,7 +471,7 @@ export default function Home() {
                                                     {getDeviceIcon(device)}
                                                     <div>
                                                         <p className="font-bold">{device.name}</p>
-                                                        {'ipAddress' in device && <p className="text-sm text-muted-foreground">{device.ipAddress}</p>}
+                                                        {'ipAddress' in device && device.ipAddress && <p className="text-sm text-muted-foreground">{device.ipAddress}</p>}
                                                         <p className="text-sm capitalize">Status: {device.status}</p>
                                                     </div>
                                                 </div>
@@ -484,7 +488,7 @@ export default function Home() {
       </main>
 
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>{editingDevice ? 'Edit Device' : 'Add New Device'}</DialogTitle>
             <DialogDescription>
@@ -563,6 +567,70 @@ export default function Home() {
               />
               
               {deviceType === 'camera' && (
+                <>
+                 <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                        control={form.control}
+                        name="zone"
+                        render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Zone</FormLabel>
+                            <FormControl>
+                                <Input placeholder="e.g., A" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="screenChannelNumber"
+                        render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Screen Channel</FormLabel>
+                            <FormControl>
+                                <Input type="number" placeholder="e.g., 1" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
+                 </div>
+                 <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                        control={form.control}
+                        name="poeSwitchId"
+                        render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>PoE Switch</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                    <SelectTrigger>
+                                    <SelectValue placeholder="Select a switch" />
+                                    </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    {poeSwitches.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
+                     <FormField
+                        control={form.control}
+                        name="poePortNumber"
+                        render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>PoE Port</FormLabel>
+                            <FormControl>
+                                <Input type="number" placeholder="e.g., 5" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
+                 </div>
                  <FormField
                     control={form.control}
                     name="installationDate"
@@ -598,6 +666,7 @@ export default function Home() {
                     </FormItem>
                     )}
                 />
+                </>
               )}
               
                {deviceType === 'nvr' && (
@@ -746,6 +815,8 @@ function DeviceTable<T extends Device>({ data, onEdit, onDelete, onStatusChange,
                     {type !== 'poe' && <TableHead>IP Address</TableHead>}
                     <TableHead>Location</TableHead>
                     {type === 'camera' && <TableHead>Installed</TableHead>}
+                    {type === 'camera' && <TableHead>Zone</TableHead>}
+                    {type === 'camera' && <TableHead>PoE Port</TableHead>}
                     {type === 'nvr' && <TableHead>Storage</TableHead>}
                     {type === 'nvr' && <TableHead>Channels</TableHead>}
                     {type === 'poe' && <TableHead>Ports</TableHead>}
@@ -764,10 +835,12 @@ function DeviceTable<T extends Device>({ data, onEdit, onDelete, onStatusChange,
                           </Badge>
                         </TableCell>
                         <TableCell className="font-medium">{item.name}</TableCell>
-                        {item.type !== 'poe' && <TableCell>{item.ipAddress}</TableCell>}
+                        {item.type !== 'poe' && <TableCell>{'ipAddress' in item ? item.ipAddress: ''}</TableCell>}
                         <TableCell>{item.location}</TableCell>
                         
                         {item.type === 'camera' && <TableCell>{format(item.installationDate, 'PPP')}</TableCell>}
+                        {item.type === 'camera' && <TableCell>{item.zone}</TableCell>}
+                        {item.type === 'camera' && <TableCell>{item.poeSwitchId}:{item.poePortNumber}</TableCell>}
 
                         {item.type === 'nvr' && <TableCell>{item.storageCapacity}</TableCell>}
                         {item.type === 'nvr' && <TableCell>{item.channels}</TableCell>}
@@ -840,7 +913,7 @@ function DeviceTable<T extends Device>({ data, onEdit, onDelete, onStatusChange,
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center h-24">
+                      <TableCell colSpan={8} className="text-center h-24">
                         No devices found.
                       </TableCell>
                     </TableRow>

@@ -9,6 +9,10 @@ export type Camera = {
   installationDate: Date;
   status: DeviceStatus;
   type: 'camera';
+  screenChannelNumber: number;
+  zone: string;
+  poeSwitchId: string;
+  poePortNumber: number;
 };
 
 export type NVR = {
