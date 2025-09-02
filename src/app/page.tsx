@@ -23,9 +23,10 @@ import {
   Wifi,
   WifiOff,
   Tv2,
+  Printer,
 } from 'lucide-react';
 
-import type { Camera as CameraType, NVR, POESwitch, Device, DeviceStatus, TVScreen, DeviceType } from '@/types';
+import type { Camera as CameraType, NVR, POESwitch, Device, DeviceStatus, TVScreen, StickerPrinter, DeviceType } from '@/types';
 import { generateCameraReport } from '@/ai/flows/generate-camera-report';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -93,11 +94,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+
 
 const baseDeviceSchema = z.object({
   name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
   location: z.string().min(2, { message: 'Location must be at least 2 characters.' }),
-  deviceType: z.enum(['camera', 'nvr', 'poe', 'tv']),
+  deviceType: z.enum(['camera', 'nvr', 'poe', 'tv', 'sticker-printer']),
 });
 
 const deviceFormSchema = z.discriminatedUnion('deviceType', [
@@ -131,6 +134,11 @@ const deviceFormSchema = z.discriminatedUnion('deviceType', [
     size: z.coerce.number().int().min(1, { message: 'Screen size must be positive.' }),
     nvrId: z.string().min(1, { message: 'An NVR must be selected.' }),
   }),
+  baseDeviceSchema.extend({
+    deviceType: z.literal('sticker-printer'),
+    ipAddress: z.string().ip({ version: 'v4', message: 'Invalid IPv4 address.' }).optional(),
+    connectionType: z.enum(['network', 'usb'], { required_error: 'Connection type is required.' }),
+  }),
 ]);
 
 type DeviceFormValues = z.infer<typeof deviceFormSchema>;
@@ -157,6 +165,11 @@ const initialTVScreens: TVScreen[] = [
     { id: 'tv2', type: 'tv', name: 'Break Room TV', ipAddress: '192.168.2.201', location: 'Break Room', status: 'inactive', size: 65, nvrId: 'nvr2' },
 ];
 
+const initialStickerPrinters: StickerPrinter[] = [
+    { id: 'sp1', type: 'sticker-printer', name: 'Warehouse Printer', ipAddress: '192.168.1.250', location: 'Warehouse', status: 'active', connectionType: 'network' },
+    { id: 'sp2', type: 'sticker-printer', name: 'Reception Printer', location: 'Main Lobby', status: 'inactive', connectionType: 'usb' },
+];
+
 
 const locationCoordinates: Record<string, { top: string; left: string }> = {
   "Main Lobby": { top: "30%", left: "25%" },
@@ -167,6 +180,7 @@ const locationCoordinates: Record<string, { top: string; left: string }> = {
   "1st Floor IT Closet": { top: "60%", left: "40%" },
   "2nd Floor IT Closet": { top: "40%", left: "70%" },
   "Break Room": { top: "55%", left: "80%" },
+  "Warehouse": { top: "85%", left: "50%" },
 };
 
 
@@ -175,6 +189,7 @@ export default function Home() {
   const [nvrs, setNvrs] = useState<NVR[]>(initialNVRs);
   const [poeSwitches, setPoeSwitches] = useState<POESwitch[]>(initialPOESwitches);
   const [tvScreens, setTvScreens] = useState<TVScreen[]>(initialTVScreens);
+  const [stickerPrinters, setStickerPrinters] = useState<StickerPrinter[]>(initialStickerPrinters);
   
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | DeviceStatus>('all');
@@ -198,6 +213,7 @@ export default function Home() {
   });
   
   const deviceType = form.watch('deviceType');
+  const connectionType = form.watch('connectionType' as any); // Watch connectionType for sticker printers
 
   useEffect(() => {
     if (editingDevice) {
@@ -221,13 +237,24 @@ export default function Home() {
         case 'tv':
             form.reset({ ...defaultValues, deviceType, ipAddress: '', size: 55, nvrId: '' });
             break;
+        case 'sticker-printer':
+            form.reset({ ...defaultValues, deviceType, connectionType: 'network', ipAddress: '' });
+            break;
         default:
              form.reset({deviceType: 'camera', name: '', location: ''});
       }
     }
   }, [editingDevice, form, deviceType]);
+  
+    useEffect(() => {
+    if (deviceType === 'sticker-printer' && connectionType === 'usb') {
+      form.setValue('ipAddress', undefined);
+      form.clearErrors('ipAddress');
+    }
+  }, [deviceType, connectionType, form]);
 
-  const allDevices: Device[] = useMemo(() => [...cameras, ...nvrs, ...poeSwitches, ...tvScreens], [cameras, nvrs, poeSwitches, tvScreens]);
+
+  const allDevices: Device[] = useMemo(() => [...cameras, ...nvrs, ...poeSwitches, ...tvScreens, ...stickerPrinters], [cameras, nvrs, poeSwitches, tvScreens, stickerPrinters]);
 
   const updateDeviceById = useCallback((id: string, updates: Partial<Device>) => {
     const updater = (prev: any[]) => prev.map(d => d.id === id ? { ...d, ...updates } : d);
@@ -235,6 +262,7 @@ export default function Home() {
     setNvrs(updater);
     setPoeSwitches(updater);
     setTvScreens(updater);
+    setStickerPrinters(updater);
   }, []);
 
   const handlePing = useCallback((device: Device, isAutomatic: boolean = false) => {
@@ -305,6 +333,9 @@ export default function Home() {
         case 'tv':
           setTvScreens(prev => [...prev, newDevice as TVScreen]);
           break;
+        case 'sticker-printer':
+          setStickerPrinters(prev => [...prev, newDevice as StickerPrinter]);
+          break;
       }
       toast({ title: 'Device Added', description: `Successfully added ${values.name}.` });
     }
@@ -323,6 +354,7 @@ export default function Home() {
         case 'nvr': setNvrs(nvrs.filter((n) => n.id !== id)); break;
         case 'poe': setPoeSwitches(poeSwitches.filter((p) => p.id !== id)); break;
         case 'tv': setTvScreens(tvScreens.filter((t) => t.id !== id)); break;
+        case 'sticker-printer': setStickerPrinters(stickerPrinters.filter((p) => p.id !== id)); break;
     }
     toast({ title: 'Device Deleted', variant: 'destructive' });
   };
@@ -367,6 +399,7 @@ export default function Home() {
   const filteredNvrs = useMemo(() => filterDevices(nvrs, searchTerm, statusFilter), [nvrs, searchTerm, statusFilter]);
   const filteredPoeSwitches = useMemo(() => filterDevices(poeSwitches, searchTerm, statusFilter), [poeSwitches, searchTerm, statusFilter]);
   const filteredTvScreens = useMemo(() => filterDevices(tvScreens, searchTerm, statusFilter), [tvScreens, searchTerm, statusFilter]);
+  const filteredStickerPrinters = useMemo(() => filterDevices(stickerPrinters, searchTerm, statusFilter), [stickerPrinters, searchTerm, statusFilter]);
 
 
   const getStatusBadgeVariant = (status: DeviceStatus) => {
@@ -386,6 +419,7 @@ export default function Home() {
         case 'nvr': return <Server className="w-5 h-5" />;
         case 'poe': return <SwitchIcon className="w-5 h-5" />;
         case 'tv': return <Tv2 className="w-5 h-5" />;
+        case 'sticker-printer': return <Printer className="w-5 h-5" />;
         default: return null;
     }
   };
@@ -443,6 +477,7 @@ export default function Home() {
                     <TabsTrigger value="nvrs"><Server className="mr-2"/>NVRs ({filteredNvrs.length})</TabsTrigger>
                     <TabsTrigger value="poe"><SwitchIcon className="mr-2"/>PoE Switches ({filteredPoeSwitches.length})</TabsTrigger>
                     <TabsTrigger value="tvs"><Tv2 className="mr-2"/>TV Screens ({filteredTvScreens.length})</TabsTrigger>
+                    <TabsTrigger value="sticker-printers"><Printer className="mr-2"/>Sticker Printers ({filteredStickerPrinters.length})</TabsTrigger>
                 </TabsList>
                  <div className="flex items-center gap-2">
                     <Button variant={viewMode === 'list' ? 'secondary' : 'ghost'} size="icon" onClick={() => setViewMode('list')}><List /></Button>
@@ -463,6 +498,9 @@ export default function Home() {
                 </TabsContent>
                  <TabsContent value="tvs">
                     <DeviceTable<TVScreen> data={filteredTvScreens} nvrs={nvrs} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'tv')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="tv" />
+                </TabsContent>
+                <TabsContent value="sticker-printers">
+                    <DeviceTable<StickerPrinter> data={filteredStickerPrinters} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'sticker-printer')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="sticker-printer" />
                 </TabsContent>
                 </>
             ) : (
@@ -535,6 +573,7 @@ export default function Home() {
                         <SelectItem value="nvr">NVR</SelectItem>
                         <SelectItem value="poe">PoE Switch</SelectItem>
                         <SelectItem value="tv">TV Screen</SelectItem>
+                        <SelectItem value="sticker-printer">Sticker Printer</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -555,7 +594,7 @@ export default function Home() {
                 )}
               />
               
-              { (deviceType === 'camera' || deviceType === 'nvr' || deviceType === 'tv') && 'ipAddress' in form.getValues() && (
+              { (deviceType === 'camera' || deviceType === 'nvr' || deviceType === 'tv' || (deviceType === 'sticker-printer' && connectionType === 'network')) && 'ipAddress' in form.getValues() && (
                 <FormField
                     control={form.control}
                     name="ipAddress"
@@ -859,6 +898,40 @@ export default function Home() {
                   />
                 </>
               )}
+              
+              {deviceType === 'sticker-printer' && (
+                <FormField
+                  control={form.control}
+                  name="connectionType"
+                  render={({ field }) => (
+                    <FormItem className="space-y-3">
+                      <FormLabel>Connection Type</FormLabel>
+                      <FormControl>
+                        <RadioGroup
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                          className="flex space-x-4"
+                        >
+                          <FormItem className="flex items-center space-x-2 space-y-0">
+                            <FormControl>
+                              <RadioGroupItem value="network" />
+                            </FormControl>
+                            <FormLabel className="font-normal">Network</FormLabel>
+                          </FormItem>
+                          <FormItem className="flex items-center space-x-2 space-y-0">
+                            <FormControl>
+                              <RadioGroupItem value="usb" />
+                            </FormControl>
+                            <FormLabel className="font-normal">USB</FormLabel>
+                          </FormItem>
+                        </RadioGroup>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
 
               <DialogFooter>
                 <Button type="button" variant="ghost" onClick={() => setIsFormOpen(false)}>Cancel</Button>
@@ -956,6 +1029,7 @@ function DeviceTable<T extends Device>({ data, poeSwitches, nvrs, onEdit, onDele
                     {type === 'poe' && <TableHead>Power Budget</TableHead>}
                     {type === 'tv' && <TableHead>Size</TableHead>}
                     {type === 'tv' && <TableHead>Associated NVR</TableHead>}
+                    {type === 'sticker-printer' && <TableHead>Connection</TableHead>}
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -969,7 +1043,11 @@ function DeviceTable<T extends Device>({ data, poeSwitches, nvrs, onEdit, onDele
                           </Badge>
                         </TableCell>
                         <TableCell className="font-medium">{item.name}</TableCell>
-                        {item.type !== 'poe' && 'ipAddress' in item && <TableCell>{item.ipAddress}</TableCell>}
+                        
+                        {type !== 'poe' && 'ipAddress' in item && (
+                            <TableCell>{(item.type === 'sticker-printer' && (item as StickerPrinter).connectionType === 'usb') ? 'N/A' : item.ipAddress || 'N/A'}</TableCell>
+                        )}
+                        
                         <TableCell>{item.location}</TableCell>
                         
                         {item.type === 'camera' && <TableCell className="capitalize">{(item as CameraType).cameraType}</TableCell>}
@@ -986,6 +1064,8 @@ function DeviceTable<T extends Device>({ data, poeSwitches, nvrs, onEdit, onDele
 
                         {item.type === 'tv' && <TableCell>{(item as TVScreen).size}"</TableCell>}
                         {item.type === 'tv' && <TableCell>{nvrMap[(item as TVScreen).nvrId]}</TableCell>}
+
+                        {item.type === 'sticker-printer' && <TableCell className="capitalize">{(item as StickerPrinter).connectionType}</TableCell>}
                         
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
@@ -1062,5 +1142,3 @@ function DeviceTable<T extends Device>({ data, poeSwitches, nvrs, onEdit, onDele
         </Card>
     );
 }
-
-    

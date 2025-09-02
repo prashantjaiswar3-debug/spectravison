@@ -1,5 +1,5 @@
 export type DeviceStatus = 'active' | 'inactive' | 'error';
-export type DeviceType = 'camera' | 'nvr' | 'poe' | 'tv';
+export type DeviceType = 'camera' | 'nvr' | 'poe' | 'tv' | 'sticker-printer';
 
 export type Camera = {
   id: string;
@@ -51,6 +51,14 @@ export type TVScreen = {
   nvrId: string;
 };
 
-export type Device = Camera | NVR | POESwitch | TVScreen;
+export type StickerPrinter = {
+  id: string;
+  name: string;
+  location: string;
+  status: DeviceStatus;
+  ipAddress?: string;
+  connectionType: 'network' | 'usb';
+  type: 'sticker-printer';
+};
 
-    
+export type Device = Camera | NVR | POESwitch | TVScreen | StickerPrinter;
