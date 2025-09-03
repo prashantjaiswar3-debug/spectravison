@@ -8,6 +8,16 @@ export interface Location {
   y: number;
 }
 
+export interface Zone {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  color: string;
+}
+
 export type Camera = {
   id: string;
   name: string;
@@ -18,6 +28,7 @@ export type Camera = {
   type: 'camera';
   screenChannelNumber: number;
   zone: string;
+  zoneId?: string;
   poeSwitchId: string;
   poePortNumber: number;
   cameraType: 'bullet' | 'dome' | 'ptz';

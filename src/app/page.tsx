@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useCallback, useRef, type DragEvent } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef, type DragEvent, type MouseEvent } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
@@ -25,9 +25,13 @@ import {
   Map,
   List,
   Upload,
+  Square,
+  Move,
+  MousePointer,
+  Trash,
 } from 'lucide-react';
 
-import type { Camera as CameraType, NVR, POESwitch, Device, DeviceStatus, TVScreen, DeviceType, Location } from '@/types';
+import type { Camera as CameraType, NVR, POESwitch, Device, DeviceStatus, TVScreen, DeviceType, Location, Zone } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -165,6 +169,21 @@ const initialLocations: Location[] = [
   { id: 'loc4', name: '1st Floor IT Closet', x: 280, y: 80 },
 ];
 
+const initialZones: Zone[] = [
+  { id: 'zone1', name: 'Main Lobby Area', x: 50, y: 100, width: 200, height: 150, color: 'rgba(255, 165, 0, 0.3)' },
+  { id: 'zone2', name: 'Servers', x: 220, y: 20, width: 100, height: 100, color: 'rgba(0, 0, 255, 0.3)' },
+];
+
+const zoneColors = [
+    'rgba(255, 165, 0, 0.3)', // Orange
+    'rgba(0, 0, 255, 0.3)',   // Blue
+    'rgba(0, 128, 0, 0.3)',   // Green
+    'rgba(255, 0, 0, 0.3)',   // Red
+    'rgba(128, 0, 128, 0.3)', // Purple
+];
+
+type MapMode = 'pan' | 'zone';
+type ZoneAction = 'move' | 'resize-br' | null;
 
 export default function Home() {
   const [cameras, setCameras] = useState<CameraType[]>(initialCameras);
@@ -182,7 +201,15 @@ export default function Home() {
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [mapImage, setMapImage] = useState<string | null>(null);
   const [locations, setLocations] = useState<Location[]>(initialLocations);
+  const [zones, setZones] = useState<Zone[]>(initialZones);
+
   const mapContainerRef = useRef<HTMLDivElement>(null);
+  const [mapMode, setMapMode] = useState<MapMode>('pan');
+  const [zoneAction, setZoneAction] = useState<{ type: ZoneAction, zoneId: string | null }>({ type: null, zoneId: null });
+  const [actionStartPos, setActionStartPos] = useState({ x: 0, y: 0 });
+  const [isCreatingZone, setIsCreatingZone] = useState(false);
+  const [newZoneRect, setNewZoneRect] = useState<Omit<Zone, 'id' | 'name' | 'color'> | null>(null);
+  const [editingZone, setEditingZone] = useState<Zone | null>(null);
 
   const { toast } = useToast();
   const stickerRef = useRef<HTMLDivElement>(null);
@@ -219,6 +246,7 @@ export default function Home() {
 
   const poeSwitchMap = useMemo(() => poeSwitches.reduce((acc, sw) => ({ ...acc, [sw.id]: sw.name }), {} as Record<string, string>), [poeSwitches]);
   const nvrMap = useMemo(() => nvrs.reduce((acc, nvr) => ({ ...acc, [nvr.id]: nvr.name }), {} as Record<string, string>), [nvrs]);
+  const zoneMap = useMemo(() => zones.reduce((acc, zone) => ({ ...acc, [zone.id]: zone.name }), {} as Record<string, string>), [zones]);
 
   const form = useForm<DeviceFormValues>({
     resolver: zodResolver(deviceFormSchema),
@@ -414,10 +442,17 @@ export default function Home() {
     const getDetails = (d: Device) => {
         let details: Record<string, any> = { ID: d.id.substring(0, 8).toUpperCase() };
         if ('ipAddress' in d && d.ipAddress) details['IP'] = d.ipAddress;
+        
+        let zoneName = '';
+        if (d.type === 'camera' && d.zoneId) {
+            zoneName = zoneMap[d.zoneId] || d.zone;
+        } else if (d.type === 'camera') {
+            zoneName = d.zone;
+        }
 
         switch (d.type) {
             case 'camera':
-                details = { ...details, NVR: `${nvrMap[d.nvrId] || 'N/A'}:${d.nvrChannelNumber}`, PoE: `${poeSwitchMap[d.poeSwitchId] || 'N/A'}:${d.poePortNumber}`, Zone: d.zone, Type: d.cameraType, Quality: `${d.quality}MP` };
+                details = { ...details, NVR: `${nvrMap[d.nvrId] || 'N/A'}:${d.nvrChannelNumber}`, PoE: `${poeSwitchMap[d.poeSwitchId] || 'N/A'}:${d.poePortNumber}`, Zone: zoneName, Type: d.cameraType, Quality: `${d.quality}MP` };
                 break;
             case 'nvr':
                 details = { ...details, Storage: d.storageCapacity, Channels: d.channels };
@@ -489,34 +524,53 @@ export default function Home() {
     }
   };
 
+  const getDeviceZone = (deviceLocation: { x: number, y: number }): string | undefined => {
+    return zones.find(zone => 
+        deviceLocation.x >= zone.x &&
+        deviceLocation.x <= zone.x + zone.width &&
+        deviceLocation.y >= zone.y &&
+        deviceLocation.y <= zone.y + zone.height
+    )?.id;
+  };
+
   const handleDragStart = (e: DragEvent, deviceId: string) => {
     e.dataTransfer.setData('deviceId', deviceId);
   };
   
   const handleDrop = (e: DragEvent) => {
-      e.preventDefault();
-      const deviceId = e.dataTransfer.getData('deviceId');
-      const mapRect = mapContainerRef.current?.getBoundingClientRect();
-      if (!deviceId || !mapRect) return;
+    e.preventDefault();
+    if (mapMode !== 'pan') return;
 
-      const device = allDevices.find(d => d.id === deviceId);
-      if (!device) return;
+    const deviceId = e.dataTransfer.getData('deviceId');
+    const mapRect = mapContainerRef.current?.getBoundingClientRect();
+    if (!deviceId || !mapRect) return;
 
-      const x = e.clientX - mapRect.left;
-      const y = e.clientY - mapRect.top;
+    const device = allDevices.find(d => d.id === deviceId);
+    if (!device) return;
+    
+    const x = e.clientX - mapRect.left;
+    const y = e.clientY - mapRect.top;
+    const zoneId = getDeviceZone({ x, y });
+    const zoneName = zoneId ? zoneMap[zoneId] : 'Unassigned';
 
-      if (device.locationId) {
-          // It's a placed device, so just move its location
-          setLocations(prev => prev.map(loc => loc.id === device.locationId ? {...loc, x, y} : loc));
-      } else {
-          // It's an unplaced device, create a new location and assign it
-          const locationName = prompt('Enter a name for this new location:');
-          if (locationName) {
-              const newLocation: Location = { id: crypto.randomUUID(), name: locationName, x, y };
-              setLocations(prev => [...prev, newLocation]);
-              updateDeviceById(deviceId, { locationId: newLocation.id, location: newLocation.name });
-          }
-      }
+    if (device.locationId) {
+        setLocations(prev => prev.map(loc => loc.id === device.locationId ? {...loc, x, y} : loc));
+        if (device.type === 'camera') {
+            updateDeviceById(deviceId, { zoneId, zone: zoneName });
+        }
+    } else {
+        const locationName = prompt('Enter a name for this new location:');
+        if (locationName) {
+            const newLocation: Location = { id: crypto.randomUUID(), name: locationName, x, y };
+            setLocations(prev => [...prev, newLocation]);
+            const updates: Partial<Device> = { locationId: newLocation.id, location: newLocation.name };
+             if (device.type === 'camera') {
+                updates.zoneId = zoneId;
+                updates.zone = zoneName;
+            }
+            updateDeviceById(deviceId, updates);
+        }
+    }
   };
 
 
@@ -538,6 +592,122 @@ export default function Home() {
       default: return null;
     }
   };
+
+  // Map zone interactions
+  const handleMapMouseDown = (e: MouseEvent) => {
+    if (mapMode !== 'zone' || !mapContainerRef.current) return;
+    const mapRect = mapContainerRef.current.getBoundingClientRect();
+    const x = e.clientX - mapRect.left;
+    const y = e.clientY - mapRect.top;
+    
+    setActionStartPos({ x, y });
+    setIsCreatingZone(true);
+    setNewZoneRect({ x, y, width: 0, height: 0 });
+  };
+  
+  const handleMapMouseMove = (e: MouseEvent) => {
+    if (!mapContainerRef.current) return;
+    const mapRect = mapContainerRef.current.getBoundingClientRect();
+    const x = e.clientX - mapRect.left;
+    const y = e.clientY - mapRect.top;
+  
+    if (isCreatingZone && newZoneRect) {
+      const width = x - actionStartPos.x;
+      const height = y - actionStartPos.y;
+      setNewZoneRect({
+        x: width > 0 ? actionStartPos.x : x,
+        y: height > 0 ? actionStartPos.y : y,
+        width: Math.abs(width),
+        height: Math.abs(height),
+      });
+    } else if (zoneAction.type && zoneAction.zoneId) {
+      const dx = x - actionStartPos.x;
+      const dy = y - actionStartPos.y;
+      
+      setZones(prevZones => prevZones.map(zone => {
+        if (zone.id === zoneAction.zoneId) {
+          if (zoneAction.type === 'move') {
+            return { ...zone, x: zone.x + dx, y: zone.y + dy };
+          }
+          if (zoneAction.type === 'resize-br') {
+            return { ...zone, width: Math.max(20, zone.width + dx), height: Math.max(20, zone.height + dy) };
+          }
+        }
+        return zone;
+      }));
+      setActionStartPos({ x, y });
+    }
+  };
+  
+  const handleMapMouseUp = () => {
+    if (isCreatingZone && newZoneRect && newZoneRect.width > 10 && newZoneRect.height > 10) {
+      const zoneName = prompt('Enter zone name:');
+      if (zoneName) {
+        const newZone: Zone = {
+          id: crypto.randomUUID(),
+          name: zoneName,
+          ...newZoneRect,
+          color: zoneColors[zones.length % zoneColors.length],
+        };
+        setZones(prev => [...prev, newZone]);
+      }
+    }
+    setIsCreatingZone(false);
+    setNewZoneRect(null);
+    setZoneAction({ type: null, zoneId: null });
+  };
+
+  const handleZoneMouseDown = (e: MouseEvent, zoneId: string, action: ZoneAction) => {
+    e.stopPropagation();
+    if (mapMode !== 'zone' || !mapContainerRef.current) return;
+    const mapRect = mapContainerRef.current.getBoundingClientRect();
+    const x = e.clientX - mapRect.left;
+    const y = e.clientY - mapRect.top;
+
+    setZoneAction({ type: action, zoneId });
+    setActionStartPos({ x, y });
+  };
+
+  const handleEditZone = (e: MouseEvent, zone: Zone) => {
+    e.stopPropagation();
+    setEditingZone(zone);
+  }
+
+  const handleUpdateZoneName = () => {
+    if (editingZone) {
+      setZones(zones.map(z => z.id === editingZone.id ? editingZone : z));
+      setEditingZone(null);
+      toast({ title: 'Zone updated' });
+    }
+  };
+
+  const handleDeleteZone = (zoneId: string) => {
+    setZones(zones.filter(z => z.id !== zoneId));
+    setEditingZone(null);
+  };
+  
+  // Auto-update device zones when they are moved or zones are changed.
+  useEffect(() => {
+    const camerasToUpdate: Partial<CameraType>[] = [];
+    cameras.forEach(cam => {
+      const loc = locations.find(l => l.id === cam.locationId);
+      if (loc) {
+        const newZoneId = getDeviceZone(loc);
+        const newZoneName = newZoneId ? zoneMap[newZoneId] : 'Unassigned';
+        if (newZoneId !== cam.zoneId) {
+          camerasToUpdate.push({ ...cam, zoneId: newZoneId, zone: newZoneName });
+        }
+      }
+    });
+
+    if(camerasToUpdate.length > 0) {
+      setCameras(prev => prev.map(cam => {
+        const updatedCam = camerasToUpdate.find(u => u.id === cam.id);
+        return updatedCam ? updatedCam as CameraType : cam;
+      }));
+    }
+  }, [locations, zones]);
+
 
   return (
     <div className="min-h-screen bg-background text-foreground p-4 sm:p-6 lg:p-8">
@@ -597,7 +767,7 @@ export default function Home() {
 
                 <>
                   <TabsContent value="cameras">
-                      <DeviceTable<CameraType> data={filteredCameras} poeSwitches={poeSwitches} nvrs={nvrs} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'camera')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} onPrintSticker={setStickerDevice} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="camera" />
+                      <DeviceTable<CameraType> data={filteredCameras} poeSwitches={poeSwitches} nvrs={nvrs} zones={zones} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'camera')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} onPrintSticker={setStickerDevice} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="camera" />
                   </TabsContent>
                   <TabsContent value="nvrs">
                       <DeviceTable<NVR> data={filteredNvrs} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'nvr')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} onPrintSticker={setStickerDevice} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="nvr" />
@@ -616,13 +786,17 @@ export default function Home() {
         {viewMode === 'map' && (
            <div className="grid grid-cols-1 md:grid-cols-[1fr_300px] gap-8">
             <Card
-                className="w-full h-[600px] relative overflow-hidden"
+                className="w-full h-[600px] relative overflow-hidden select-none"
                 ref={mapContainerRef}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={handleDrop}
+                onMouseDown={handleMapMouseDown}
+                onMouseMove={handleMapMouseMove}
+                onMouseUp={handleMapMouseUp}
+                onMouseLeave={handleMapMouseUp}
             >
               {mapImage ? (
-                <img src={mapImage} alt="Device Map" className="w-full h-full object-contain" />
+                <img src={mapImage} alt="Device Map" className="w-full h-full object-contain pointer-events-none" />
               ) : (
                 <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
                     <Map className="w-16 h-16 mb-4" />
@@ -637,6 +811,48 @@ export default function Home() {
                       </Button>
                 </div>
               )}
+                {/* Render Zones */}
+                {zones.map(zone => (
+                    <div
+                        key={zone.id}
+                        className={cn(
+                            "absolute border-2 border-dashed",
+                            mapMode === 'zone' && 'hover:bg-gray-500/20',
+                            zoneAction.zoneId === zone.id ? 'border-blue-500' : 'border-gray-500/80',
+                        )}
+                        style={{
+                            left: zone.x,
+                            top: zone.y,
+                            width: zone.width,
+                            height: zone.height,
+                            backgroundColor: zone.color,
+                            cursor: mapMode === 'zone' ? 'move' : 'default',
+                        }}
+                        onMouseDown={(e) => handleZoneMouseDown(e, zone.id, 'move')}
+                        onDoubleClick={(e) => handleEditZone(e, zone)}
+                    >
+                         <div className="absolute -top-6 left-0 bg-background/70 px-1 text-xs rounded-t-sm">{zone.name}</div>
+                         {mapMode === 'zone' && (
+                            <>
+                                <div 
+                                    className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-background rounded-full border-2 border-blue-500 cursor-nwse-resize"
+                                    onMouseDown={(e) => handleZoneMouseDown(e, zone.id, 'resize-br')}
+                                />
+                            </>
+                         )}
+                    </div>
+                ))}
+
+                {isCreatingZone && newZoneRect && (
+                     <div className="absolute border-2 border-dashed border-blue-500 bg-blue-500/20" style={{
+                         left: newZoneRect.x,
+                         top: newZoneRect.y,
+                         width: newZoneRect.width,
+                         height: newZoneRect.height,
+                     }}/>
+                )}
+
+                {/* Render Devices */}
                 {placedDevices.map(device => {
                     const location = locations.find(l => l.id === device.locationId);
                     if (!location) return null;
@@ -647,11 +863,12 @@ export default function Home() {
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <div
-                                        draggable
+                                        draggable={mapMode === 'pan'}
                                         onDragStart={(e) => handleDragStart(e, device.id)}
                                         className={cn(
-                                            'absolute -translate-x-1/2 -translate-y-1/2 cursor-grab p-1 rounded-full bg-background/70 backdrop-blur-sm',
-                                            isFlashing && 'animate-pulse'
+                                            'absolute -translate-x-1/2 -translate-y-1/2 p-1 rounded-full bg-background/70 backdrop-blur-sm',
+                                            isFlashing && 'animate-pulse',
+                                            mapMode === 'pan' ? 'cursor-grab' : 'cursor-default',
                                         )}
                                         style={{ left: location.x, top: location.y }}
                                     >
@@ -662,6 +879,7 @@ export default function Home() {
                                     <p className="font-bold">{device.name}</p>
                                     <p>{device.location}</p>
                                     <p className="capitalize">Status: {status}</p>
+                                    {device.type === 'camera' && device.zoneId && <p>Zone: {zoneMap[device.zoneId]}</p>}
                                 </TooltipContent>
                             </Tooltip>
                         </TooltipProvider>
@@ -670,6 +888,10 @@ export default function Home() {
             </Card>
 
             <div className="flex flex-col gap-4">
+                <div className='flex items-center gap-1 rounded-md bg-muted p-1 text-muted-foreground'>
+                   <Button size="sm" variant={mapMode === 'pan' ? 'secondary' : 'ghost'} onClick={() => setMapMode('pan')} className="gap-1 flex-1"><MousePointer className="w-4 h-4" />Pan & Place</Button>
+                   <Button size="sm" variant={mapMode === 'zone' ? 'secondary' : 'ghost'} onClick={() => setMapMode('zone')} className="gap-1 flex-1"><Square className="w-4 h-4"/>Manage Zones</Button>
+                </div>
                 {mapImage && (
                     <Button asChild variant="outline" size="sm">
                        <label className="w-full">
@@ -689,7 +911,7 @@ export default function Home() {
                                 {unplacedDevices.map(device => (
                                     <div
                                         key={device.id}
-                                        draggable
+                                        draggable={mapMode === 'pan'}
                                         onDragStart={(e) => handleDragStart(e, device.id)}
                                         className="flex items-center gap-2 p-2 rounded-md border bg-muted/50 cursor-grab"
                                     >
@@ -833,9 +1055,17 @@ export default function Home() {
                         render={({ field }) => (
                         <FormItem>
                             <FormLabel>Zone</FormLabel>
-                            <FormControl>
-                                <Input placeholder="e.g., A" {...field} />
-                            </FormControl>
+                             <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                    <SelectTrigger>
+                                    <SelectValue placeholder="Assign a zone" />
+                                    </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    <SelectItem value="Unassigned">Unassigned</SelectItem>
+                                    {zones.map(z => <SelectItem key={z.id} value={z.name}>{z.name}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
                             <FormMessage />
                         </FormItem>
                         )}
@@ -1089,6 +1319,46 @@ export default function Home() {
           )}
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!editingZone} onOpenChange={(open) => !open && setEditingZone(null)}>
+          <DialogContent>
+              <DialogHeader>
+                  <DialogTitle>Edit Zone</DialogTitle>
+              </DialogHeader>
+              {editingZone && (
+                  <div className="space-y-4">
+                      <FormItem>
+                          <FormLabel>Zone Name</FormLabel>
+                          <Input 
+                              value={editingZone.name}
+                              onChange={(e) => setEditingZone({...editingZone, name: e.target.value})}
+                          />
+                      </FormItem>
+                      <DialogFooter>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="destructive" className="mr-auto"><Trash2 /> Delete</Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete Zone?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to delete the "{editingZone.name}" zone? This cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleDeleteZone(editingZone.id)}>Delete</AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                          <Button variant="ghost" onClick={() => setEditingZone(null)}>Cancel</Button>
+                          <Button onClick={handleUpdateZoneName}>Save</Button>
+                      </DialogFooter>
+                  </div>
+              )}
+          </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -1098,6 +1368,7 @@ interface DeviceTableProps<T extends Device & { derivedStatus?: DeviceStatus }> 
     data: T[];
     poeSwitches?: POESwitch[];
     nvrs?: NVR[];
+    zones?: Zone[];
     onEdit?: (item: T) => void;
     onDelete?: (id: string) => void;
     onStatusChange: (item: T, newStatus: boolean) => void;
@@ -1108,7 +1379,7 @@ interface DeviceTableProps<T extends Device & { derivedStatus?: DeviceStatus }> 
     type: DeviceType;
 }
 
-function DeviceTable<T extends Device & { derivedStatus?: DeviceStatus }>({ data, poeSwitches, nvrs, onEdit, onDelete, onStatusChange, onPing, onPrintSticker, pinging, getStatusBadgeVariant, type }: DeviceTableProps<T>) {
+function DeviceTable<T extends Device & { derivedStatus?: DeviceStatus }>({ data, poeSwitches, nvrs, zones, onEdit, onDelete, onStatusChange, onPing, onPrintSticker, pinging, getStatusBadgeVariant, type }: DeviceTableProps<T>) {
 
     const poeSwitchMap = useMemo(() => {
         if (!poeSwitches) return {};
@@ -1125,6 +1396,14 @@ function DeviceTable<T extends Device & { derivedStatus?: DeviceStatus }>({ data
             return acc;
         }, {} as Record<string, string>);
     }, [nvrs]);
+    
+    const zoneMap = useMemo(() => {
+        if (!zones) return {};
+        return zones.reduce((acc, zone) => {
+            acc[zone.id] = zone.name;
+            return acc;
+        }, {} as Record<string, string>);
+    }, [zones]);
 
     return (
         <Card>
@@ -1172,7 +1451,7 @@ function DeviceTable<T extends Device & { derivedStatus?: DeviceStatus }>({ data
                         
                         {item.type === 'camera' && <TableCell className="capitalize">{(item as CameraType).cameraType}</TableCell>}
                         {item.type === 'camera' && <TableCell>{(item as CameraType).quality}MP</TableCell>}
-                        {item.type === 'camera' && <TableCell>{(item as CameraType).zone}</TableCell>}
+                        {item.type === 'camera' && <TableCell>{(item as CameraType).zoneId ? zoneMap[(item as CameraType).zoneId!] || 'Unassigned' : (item as CameraType).zone}</TableCell>}
                         {item.type === 'camera' && <TableCell>{poeSwitchMap[(item as CameraType).poeSwitchId]}:{(item as CameraType).poePortNumber}</TableCell>}
                         {item.type === 'camera' && <TableCell>{nvrMap[(item as CameraType).nvrId]}:{(item as CameraType).nvrChannelNumber}</TableCell>}
 
