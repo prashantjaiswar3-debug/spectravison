@@ -23,6 +23,8 @@ import {
   Printer,
   QrCode,
   ListTree,
+  Share2,
+  ArrowRight,
 } from 'lucide-react';
 
 import type { Camera as CameraType, NVR, POESwitch, Device, DeviceStatus, TVScreen, DeviceType } from '@/types';
@@ -170,6 +172,7 @@ export default function Home() {
   const [editingDevice, setEditingDevice] = useState<Device | null>(null);
   const [pinging, setPinging] = useState<Record<string, boolean>>({});
   const [stickerDevice, setStickerDevice] = useState<Device | null>(null);
+  const [connectionCamera, setConnectionCamera] = useState<CameraType | null>(null);
 
   const { toast } = useToast();
   const stickerRef = useRef<HTMLDivElement>(null);
@@ -202,8 +205,8 @@ export default function Home() {
 
   const allDevices: Device[] = useMemo(() => [...cameras, ...nvrs, ...derivedPoeSwitches, ...tvScreens], [cameras, nvrs, derivedPoeSwitches, tvScreens]);
 
-  const poeSwitchMap = useMemo(() => poeSwitches.reduce((acc, sw) => ({ ...acc, [sw.id]: sw.name }), {} as Record<string, string>), [poeSwitches]);
-  const nvrMap = useMemo(() => nvrs.reduce((acc, nvr) => ({ ...acc, [nvr.id]: nvr.name }), {} as Record<string, string>), [nvrs]);
+  const poeSwitchMap = useMemo(() => poeSwitches.reduce((acc, sw) => ({ ...acc, [sw.id]: sw }), {} as Record<string, POESwitch>), [poeSwitches]);
+  const nvrMap = useMemo(() => nvrs.reduce((acc, nvr) => ({ ...acc, [nvr.id]: nvr }), {} as Record<string, NVR>), [nvrs]);
 
   const form = useForm<DeviceFormValues>({
     resolver: zodResolver(deviceFormSchema),
@@ -395,6 +398,8 @@ export default function Home() {
   
   const renderDeviceSticker = (device: Device | null): string => {
     if (!device) return '';
+    const poeSwitchName = (id: string) => poeSwitchMap[id]?.name || 'N/A';
+    const nvrName = (id: string) => nvrMap[id]?.name || 'N/A';
 
     const getDetails = (d: Device) => {
         let details: Record<string, any> = { ID: d.id.substring(0, 8).toUpperCase() };
@@ -402,7 +407,7 @@ export default function Home() {
         
         switch (d.type) {
             case 'camera':
-                details = { ...details, NVR: `${nvrMap[d.nvrId] || 'N/A'}:${d.nvrChannelNumber}`, PoE: `${poeSwitchMap[d.poeSwitchId] || 'N/A'}:${d.poePortNumber}`, Zone: d.zone, Type: d.cameraType, Quality: `${d.quality}MP` };
+                details = { ...details, NVR: `${nvrName(d.nvrId)}:${d.nvrChannelNumber}`, PoE: `${poeSwitchName(d.poeSwitchId)}:${d.poePortNumber}`, Zone: d.zone, Type: d.cameraType, Quality: `${d.quality}MP` };
                 break;
             case 'nvr':
                 details = { ...details, Storage: d.storageCapacity, Channels: d.channels };
@@ -411,7 +416,7 @@ export default function Home() {
                 details = { ...details, Ports: d.portCount, Budget: d.powerBudget };
                 break;
             case 'tv':
-                details = { ...details, Size: `${d.size}"`, NVR: nvrMap[d.nvrId] || 'N/A' };
+                details = { ...details, Size: `${d.size}"`, NVR: nvrName(d.nvrId) };
                 break;
         }
         return details;
@@ -526,7 +531,7 @@ export default function Home() {
 
               <>
                 <TabsContent value="cameras">
-                    <DeviceTable<CameraType> data={filteredCameras} poeSwitches={poeSwitches} nvrs={nvrs} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'camera')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} onPrintSticker={setStickerDevice} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="camera" />
+                    <DeviceTable<CameraType> data={filteredCameras} poeSwitches={poeSwitches} nvrs={nvrs} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'camera')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} onPrintSticker={setStickerDevice} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} onShowConnection={setConnectionCamera} type="camera" />
                 </TabsContent>
                 <TabsContent value="nvrs">
                     <DeviceTable<NVR> data={filteredNvrs} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'nvr')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} onPrintSticker={setStickerDevice} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="nvr" />
@@ -937,6 +942,35 @@ export default function Home() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={!!connectionCamera} onOpenChange={(open) => !open && setConnectionCamera(null)}>
+          <DialogContent>
+              <DialogHeader>
+                  <DialogTitle>Connection Path for {connectionCamera?.name}</DialogTitle>
+              </DialogHeader>
+              {connectionCamera && (
+                <div className="flex items-center justify-center space-x-2 py-8">
+                    <div className="flex flex-col items-center text-center">
+                        <Camera className="w-8 h-8"/>
+                        <p className="font-semibold">{connectionCamera.name}</p>
+                        <p className="text-sm text-muted-foreground">{connectionCamera.ipAddress}</p>
+                    </div>
+                    <ArrowRight className="w-6 h-6 shrink-0"/>
+                    <div className="flex flex-col items-center text-center">
+                        <SwitchIcon className="w-8 h-8"/>
+                        <p className="font-semibold">{poeSwitchMap[connectionCamera.poeSwitchId]?.name || 'N/A'}</p>
+                        <p className="text-sm text-muted-foreground">Port: {connectionCamera.poePortNumber}</p>
+                    </div>
+                    <ArrowRight className="w-6 h-6 shrink-0"/>
+                     <div className="flex flex-col items-center text-center">
+                        <Server className="w-8 h-8"/>
+                        <p className="font-semibold">{nvrMap[connectionCamera.nvrId]?.name || 'N/A'}</p>
+                        <p className="text-sm text-muted-foreground">Channel: {connectionCamera.nvrChannelNumber}</p>
+                    </div>
+                </div>
+              )}
+          </DialogContent>
+      </Dialog>
+
     </div>
   );
 }
@@ -951,12 +985,13 @@ interface DeviceTableProps<T extends Device & { derivedStatus?: DeviceStatus }> 
     onStatusChange: (item: T, newStatus: boolean) => void;
     onPing: (item: T) => void;
     onPrintSticker: (item: T) => void;
+    onShowConnection?: (item: T) => void;
     pinging: Record<string, boolean>;
     getStatusBadgeVariant: (status: DeviceStatus) => string;
     type: DeviceType;
 }
 
-function DeviceTable<T extends Device & { derivedStatus?: DeviceStatus }>({ data, poeSwitches, nvrs, onEdit, onDelete, onStatusChange, onPing, onPrintSticker, pinging, getStatusBadgeVariant, type }: DeviceTableProps<T>) {
+function DeviceTable<T extends Device & { derivedStatus?: DeviceStatus }>({ data, poeSwitches, nvrs, onEdit, onDelete, onStatusChange, onPing, onPrintSticker, onShowConnection, pinging, getStatusBadgeVariant, type }: DeviceTableProps<T>) {
 
     const poeSwitchMap = useMemo(() => {
         if (!poeSwitches) return {};
@@ -1070,6 +1105,11 @@ function DeviceTable<T extends Device & { derivedStatus?: DeviceStatus }>({ data
                                 <DropdownMenuItem onClick={() => onPrintSticker(item)}>
                                     <QrCode /> Print Sticker
                                 </DropdownMenuItem>
+                                {onShowConnection && item.type === 'camera' && (
+                                    <DropdownMenuItem onClick={() => onShowConnection(item)}>
+                                        <Share2 /> Show Connection
+                                    </DropdownMenuItem>
+                                )}
                                 {onDelete && (
                                   <>
                                     <DropdownMenuSeparator />
@@ -1371,4 +1411,6 @@ function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrint
         </Card>
     )
 }
+    
+
     
