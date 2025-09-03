@@ -33,7 +33,6 @@ import {
 } from 'lucide-react';
 
 import type { Camera as CameraType, NVR, POESwitch, Device, DeviceStatus, TVScreen, DeviceType } from '@/types';
-import { generateCameraReport } from '@/ai/flows/generate-camera-report';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -198,7 +197,7 @@ export default function Home() {
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [pinging, setPinging] = useState<Record<string, boolean>>({});
   const [stickerDevice, setStickerDevice] = useState<Device | null>(null);
-  const [mapImageUrl, setMapImageUrl] = useState<string>('https://picsum.photos/seed/map/1200/675');
+  const [mapImageUrl, setMapImageUrl] = useState<string>('');
   const [zoomLevel, setZoomLevel] = useState(1);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const [locationCoordinates, setLocationCoordinates] = useState(initialLocationCoordinates);
@@ -383,28 +382,6 @@ export default function Home() {
     const status = newStatus ? 'active' : 'inactive';
     updateDeviceById(device.id, { status });
   };
-
-  const handleGenerateReport = useCallback(async () => {
-    setIsGeneratingReport(true);
-    setReportDialogOpen(true);
-    setReportContent('');
-    try {
-      const result = await generateCameraReport({
-        cameraData: JSON.stringify(cameras),
-      });
-      setReportContent(result.report);
-    } catch (error) {
-      console.error('Failed to generate report:', error);
-      setReportContent('An error occurred while generating the report. Please try again.');
-      toast({
-        title: 'Report Generation Failed',
-        description: 'Could not generate the camera report.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsGeneratingReport(false);
-    }
-  }, [cameras, toast]);
 
   const handlePrintSticker = () => {
     const printWindow = window.open('', '', 'height=400,width=600');
@@ -632,9 +609,6 @@ export default function Home() {
           <div className="flex gap-2">
             <Button onClick={handlePrintAllStickers} variant="outline">
               <Printer /> Print All Stickers
-            </Button>
-            <Button onClick={handleGenerateReport} variant="outline">
-              <FileText /> Generate Report
             </Button>
             <Button onClick={() => { setEditingDevice(null); form.reset({deviceType: 'camera', name: '', location: ''}); setIsFormOpen(true); }}>
               <Plus /> Add Device
