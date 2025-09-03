@@ -26,6 +26,9 @@ import {
   Tv2,
   Printer,
   QrCode,
+  Upload,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react';
 
 import type { Camera as CameraType, NVR, POESwitch, Device, DeviceStatus, TVScreen, DeviceType } from '@/types';
@@ -98,6 +101,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Slider } from '@/components/ui/slider';
 
 
 const baseDeviceSchema = z.object({
@@ -192,9 +196,13 @@ export default function Home() {
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [pinging, setPinging] = useState<Record<string, boolean>>({});
   const [stickerDevice, setStickerDevice] = useState<Device | null>(null);
+  const [mapImageUrl, setMapImageUrl] = useState<string>('https://picsum.photos/seed/map/1200/675');
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
 
   const { toast } = useToast();
   const stickerRef = useRef<HTMLDivElement>(null);
+  const mapUploadInputRef = useRef<HTMLInputElement>(null);
 
   const allDevices: Device[] = useMemo(() => [...cameras, ...nvrs, ...poeSwitches, ...tvScreens], [cameras, nvrs, poeSwitches, tvScreens]);
 
@@ -409,6 +417,18 @@ export default function Home() {
     }
   };
 
+  const handleMapImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setMapImageUrl(e.target?.result as string);
+        toast({ title: 'Map updated successfully!' });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const renderDeviceSticker = (device: Device | null): string => {
     if (!device) return '';
 
@@ -579,37 +599,63 @@ export default function Home() {
                 </>
             ) : (
                 <Card>
-                    <CardHeader><CardTitle>Device Map</CardTitle></CardHeader>
+                    <CardHeader className="flex-row items-center justify-between">
+                      <CardTitle>Device Map</CardTitle>
+                      <div className="flex items-center gap-2">
+                          <input
+                            type="file"
+                            ref={mapUploadInputRef}
+                            onChange={handleMapImageUpload}
+                            accept="image/*"
+                            className="hidden"
+                          />
+                          <Button variant="outline" onClick={() => mapUploadInputRef.current?.click()}>
+                              <Upload /> Upload Map
+                          </Button>
+                          <Button variant="outline" size="icon" onClick={() => setZoomLevel(prev => Math.min(prev + 0.1, 3))}><ZoomIn /></Button>
+                          <Slider
+                            value={[zoomLevel]}
+                            onValueChange={(value) => setZoomLevel(value[0])}
+                            min={0.5}
+                            max={3}
+                            step={0.1}
+                            className="w-32"
+                          />
+                          <Button variant="outline" size="icon" onClick={() => setZoomLevel(prev => Math.max(prev - 0.1, 0.5))}><ZoomOut /></Button>
+                      </div>
+                    </CardHeader>
                     <CardContent>
                         <TooltipProvider>
-                            <div className="relative w-full aspect-[16/9] bg-muted rounded-lg overflow-hidden border">
-                                <img src="https://picsum.photos/seed/map/1200/675" alt="Office Map" className="w-full h-full object-cover opacity-50" data-ai-hint="office floor plan" />
-                                {allDevices.map(device => {
-                                    const coords = locationCoordinates[device.location];
-                                    if (!coords) return null;
-                                    return (
-                                        <Tooltip key={device.id} delayDuration={100}>
-                                            <TooltipTrigger asChild>
-                                                <div className="absolute transform -translate-x-1/2 -translate-y-1/2" style={{ top: coords.top, left: coords.left }}>
-                                                    <div className="relative flex items-center justify-center">
-                                                         <div className={cn("w-4 h-4 rounded-full", getPinColor(device.status))}></div>
-                                                         <div className={cn("absolute w-4 h-4 rounded-full animate-ping", getPinColor(device.status), {'hidden': pinging[device.id] || device.status !== 'error' })}></div>
+                            <div ref={mapContainerRef} className="relative w-full aspect-[16/9] bg-muted rounded-lg overflow-auto border">
+                                <div className="relative w-full h-full" style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'center center' }}>
+                                    <img src={mapImageUrl} alt="Office Map" className="w-full h-full object-contain" data-ai-hint="office floor plan" />
+                                    {allDevices.map(device => {
+                                        const coords = locationCoordinates[device.location];
+                                        if (!coords) return null;
+                                        return (
+                                            <Tooltip key={device.id} delayDuration={100}>
+                                                <TooltipTrigger asChild>
+                                                    <div className="absolute transform -translate-x-1/2 -translate-y-1/2" style={{ top: coords.top, left: coords.left }}>
+                                                        <div className="relative flex items-center justify-center">
+                                                            <div className={cn("w-4 h-4 rounded-full", getPinColor(device.status))}></div>
+                                                            <div className={cn("absolute w-4 h-4 rounded-full animate-ping", getPinColor(device.status), {'hidden': pinging[device.id] || device.status !== 'error' })}></div>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            </TooltipTrigger>
-                                            <TooltipContent>
-                                                <div className="flex items-center gap-2">
-                                                    {getDeviceIcon(device)}
-                                                    <div>
-                                                        <p className="font-bold">{device.name}</p>
-                                                        {'ipAddress' in device && device.ipAddress && <p className="text-sm text-muted-foreground">{device.ipAddress}</p>}
-                                                        <p className="text-sm capitalize">Status: {device.status}</p>
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <div className="flex items-center gap-2">
+                                                        {getDeviceIcon(device)}
+                                                        <div>
+                                                            <p className="font-bold">{device.name}</p>
+                                                            {'ipAddress' in device && device.ipAddress && <p className="text-sm text-muted-foreground">{device.ipAddress}</p>}
+                                                            <p className="text-sm capitalize">Status: {device.status}</p>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            </TooltipContent>
-                                        </Tooltip>
-                                    );
-                                })}
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        );
+                                    })}
+                                </div>
                             </div>
                         </TooltipProvider>
                     </CardContent>
@@ -1205,3 +1251,5 @@ function DeviceTable<T extends Device>({ data, poeSwitches, nvrs, onEdit, onDele
         </Card>
     );
 }
+
+    
