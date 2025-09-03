@@ -38,6 +38,8 @@ export type POESwitch = {
   portCount: number;
   powerBudget: string; // e.g., '250W'
   type: 'poe';
+  derivedStatus?: DeviceStatus;
+  hasInactiveCameras?: boolean;
 };
 
 export type TVScreen = {

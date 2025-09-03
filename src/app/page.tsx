@@ -207,7 +207,34 @@ export default function Home() {
   const stickerRef = useRef<HTMLDivElement>(null);
   const mapUploadInputRef = useRef<HTMLInputElement>(null);
 
-  const allDevices: Device[] = useMemo(() => [...cameras, ...nvrs, ...poeSwitches, ...tvScreens], [cameras, nvrs, poeSwitches, tvScreens]);
+  const derivedPoeSwitches = useMemo(() => {
+    return poeSwitches.map(sw => {
+        const connectedCameras = cameras.filter(cam => cam.poeSwitchId === sw.id);
+        if (connectedCameras.length === 0) {
+            return { ...sw, derivedStatus: sw.status, hasInactiveCameras: false };
+        }
+
+        const hasErrorCamera = connectedCameras.some(cam => cam.status === 'error');
+        if (hasErrorCamera) {
+            return { ...sw, derivedStatus: 'error' as DeviceStatus, hasInactiveCameras: false };
+        }
+
+        const allCamerasInactive = connectedCameras.every(cam => cam.status === 'inactive');
+        if (allCamerasInactive) {
+            return { ...sw, derivedStatus: 'inactive' as DeviceStatus, hasInactiveCameras: true };
+        }
+        
+        // Return a mix of active/inactive as active for the switch
+        const hasActiveCamera = connectedCameras.some(cam => cam.status === 'active');
+        if (hasActiveCamera) {
+            return { ...sw, derivedStatus: 'active' as DeviceStatus, hasInactiveCameras: false };
+        }
+
+        return { ...sw, derivedStatus: sw.status, hasInactiveCameras: false };
+    });
+  }, [poeSwitches, cameras]);
+
+  const allDevices: Device[] = useMemo(() => [...cameras, ...nvrs, ...derivedPoeSwitches, ...tvScreens], [cameras, nvrs, derivedPoeSwitches, tvScreens]);
 
   const poeSwitchMap = useMemo(() => poeSwitches.reduce((acc, sw) => ({ ...acc, [sw.id]: sw.name }), {} as Record<string, string>), [poeSwitches]);
   const nvrMap = useMemo(() => nvrs.reduce((acc, nvr) => ({ ...acc, [nvr.id]: nvr.name }), {} as Record<string, string>), [nvrs]);
@@ -336,7 +363,9 @@ export default function Home() {
   };
 
   const handleEdit = (device: Device) => {
-    setEditingDevice(device);
+    // Find the original device to edit from the state, not the derived one
+    const originalDevice = poeSwitches.find(d => d.id === device.id) || allDevices.find(d => d.id === device.id);
+    setEditingDevice(originalDevice || device);
     setIsFormOpen(true);
   };
 
@@ -543,17 +572,18 @@ export default function Home() {
 
 
   const filterDevices = <T extends Device>(devices: T[], term: string, status: 'all' | DeviceStatus) => {
-    return devices.filter(device => 
-        (status === 'all' || device.status === status) &&
+    return devices.filter(device => {
+        const deviceStatus = 'derivedStatus' in device ? device.derivedStatus : device.status;
+        return (status === 'all' || deviceStatus === status) &&
         (device.name.toLowerCase().includes(term.toLowerCase()) ||
          device.location.toLowerCase().includes(term.toLowerCase()) ||
          ('ipAddress' in device && device.ipAddress?.includes(term)))
-    ).sort((a, b) => a.name.localeCompare(b.name));
+    }).sort((a, b) => a.name.localeCompare(b.name));
   };
   
   const filteredCameras = useMemo(() => filterDevices(cameras, searchTerm, statusFilter), [cameras, searchTerm, statusFilter]);
   const filteredNvrs = useMemo(() => filterDevices(nvrs, searchTerm, statusFilter), [nvrs, searchTerm, statusFilter]);
-  const filteredPoeSwitches = useMemo(() => filterDevices(poeSwitches, searchTerm, statusFilter), [poeSwitches, searchTerm, statusFilter]);
+  const filteredPoeSwitches = useMemo(() => filterDevices(derivedPoeSwitches, searchTerm, statusFilter), [derivedPoeSwitches, searchTerm, statusFilter]);
   const filteredTvScreens = useMemo(() => filterDevices(tvScreens, searchTerm, statusFilter), [tvScreens, searchTerm, statusFilter]);
 
   const unmappedDevices = useMemo(() => {
@@ -655,7 +685,7 @@ export default function Home() {
                     <DeviceTable<NVR> data={filteredNvrs} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'nvr')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} onPrintSticker={setStickerDevice} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="nvr" />
                 </TabsContent>
                 <TabsContent value="poe">
-                    <DeviceTable<POESwitch> data={filteredPoeSwitches} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'poe')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} onPrintSticker={setStickerDevice} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="poe" />
+                    <DeviceTable<POESwitch & { derivedStatus?: DeviceStatus }> data={filteredPoeSwitches} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'poe')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} onPrintSticker={setStickerDevice} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="poe" />
                 </TabsContent>
                  <TabsContent value="tvs">
                     <DeviceTable<TVScreen> data={filteredTvScreens} nvrs={nvrs} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'tv')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} onPrintSticker={setStickerDevice} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="tv" />
@@ -701,6 +731,10 @@ export default function Home() {
                                         {allDevices.map(device => {
                                             const coords = locationCoordinates[device.location];
                                             if (!coords) return null;
+                                            
+                                            const deviceStatus = 'derivedStatus' in device ? device.derivedStatus : device.status;
+                                            const hasInactiveCameras = 'hasInactiveCameras' in device && device.hasInactiveCameras;
+                                            
                                             return (
                                                 <Tooltip key={device.id} delayDuration={100}>
                                                     <TooltipTrigger asChild>
@@ -712,8 +746,8 @@ export default function Home() {
                                                             data-pin-location={device.location}
                                                         >
                                                             <div className="relative flex items-center justify-center">
-                                                                <div className={cn("w-4 h-4 rounded-full", getPinColor(device.status))}></div>
-                                                                <div className={cn("absolute w-4 h-4 rounded-full animate-ping", getPinColor(device.status), {'hidden': pinging[device.id] || device.status !== 'error' })}></div>
+                                                                <div className={cn("w-4 h-4 rounded-full", getPinColor(deviceStatus!))}></div>
+                                                                <div className={cn("absolute w-4 h-4 rounded-full animate-ping", getPinColor(deviceStatus!), {'hidden': pinging[device.id] || (device.status !== 'error' && !hasInactiveCameras) })}></div>
                                                             </div>
                                                         </div>
                                                     </TooltipTrigger>
@@ -723,7 +757,7 @@ export default function Home() {
                                                             <div>
                                                                 <p className="font-bold">{device.name}</p>
                                                                 {'ipAddress' in device && device.ipAddress && <p className="text-sm text-muted-foreground">{device.ipAddress}</p>}
-                                                                <p className="text-sm capitalize">Status: {device.status}</p>
+                                                                <p className="text-sm capitalize">Status: {deviceStatus}</p>
                                                             </div>
                                                         </div>
                                                     </TooltipContent>
@@ -756,8 +790,8 @@ export default function Home() {
                                                     <p className="font-medium text-sm">{device.name}</p>
                                                     <p className="text-xs text-muted-foreground">{device.location}</p>
                                                 </div>
-                                                <Badge variant="outline" className={cn('capitalize text-xs', getStatusBadgeVariant(device.status))}>
-                                                    {device.status}
+                                                <Badge variant="outline" className={cn('capitalize text-xs', getStatusBadgeVariant('derivedStatus' in device ? device.derivedStatus! : device.status))}>
+                                                    {'derivedStatus' in device ? device.derivedStatus : device.status}
                                                 </Badge>
                                             </div>
                                         ))
@@ -1189,7 +1223,7 @@ export default function Home() {
 }
 
 
-interface DeviceTableProps<T extends Device> {
+interface DeviceTableProps<T extends Device & { derivedStatus?: DeviceStatus }> {
     data: T[];
     poeSwitches?: POESwitch[];
     nvrs?: NVR[];
@@ -1203,7 +1237,7 @@ interface DeviceTableProps<T extends Device> {
     type: DeviceType;
 }
 
-function DeviceTable<T extends Device>({ data, poeSwitches, nvrs, onEdit, onDelete, onStatusChange, onPing, onPrintSticker, pinging, getStatusBadgeVariant, type }: DeviceTableProps<T>) {
+function DeviceTable<T extends Device & { derivedStatus?: DeviceStatus }>({ data, poeSwitches, nvrs, onEdit, onDelete, onStatusChange, onPing, onPrintSticker, pinging, getStatusBadgeVariant, type }: DeviceTableProps<T>) {
 
     const poeSwitchMap = useMemo(() => {
         if (!poeSwitches) return {};
@@ -1248,11 +1282,13 @@ function DeviceTable<T extends Device>({ data, poeSwitches, nvrs, onEdit, onDele
                 </TableHeader>
                 <TableBody>
                   {data.length > 0 ? (
-                    data.map((item) => (
+                    data.map((item) => {
+                      const itemStatus = item.derivedStatus || item.status;
+                      return (
                       <TableRow key={item.id}>
                         <TableCell>
-                          <Badge variant="outline" className={cn('capitalize', getStatusBadgeVariant(item.status))}>
-                            {item.status}
+                          <Badge variant="outline" className={cn('capitalize', getStatusBadgeVariant(itemStatus))}>
+                            {itemStatus}
                           </Badge>
                         </TableCell>
                         <TableCell className="font-medium">{item.name}</TableCell>
@@ -1285,12 +1321,13 @@ function DeviceTable<T extends Device>({ data, poeSwitches, nvrs, onEdit, onDele
                                 checked={item.status === 'active'}
                                 onCheckedChange={(checked) => onStatusChange(item, checked)}
                                 aria-label={`Toggle status for ${item.name}`}
+                                disabled={item.type === 'poe'}
                               />
                             <TooltipProvider>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
                                         <Button variant="ghost" size="icon" onClick={() => onPing(item)} disabled={pinging[item.id] || !('ipAddress' in item && item.ipAddress)}>
-                                            {pinging[item.id] ? <Loader2 className="animate-spin" /> : item.status === 'error' ? <WifiOff/> : <Wifi/>}
+                                            {pinging[item.id] ? <Loader2 className="animate-spin" /> : itemStatus === 'error' ? <WifiOff/> : <Wifi/>}
                                         </Button>
                                     </TooltipTrigger>
                                     <TooltipContent>
@@ -1345,7 +1382,8 @@ function DeviceTable<T extends Device>({ data, poeSwitches, nvrs, onEdit, onDele
                           </div>
                         </TableCell>
                       </TableRow>
-                    ))
+                      )
+                    })
                   ) : (
                     <TableRow>
                       <TableCell colSpan={10} className="text-center h-24">
@@ -1360,5 +1398,3 @@ function DeviceTable<T extends Device>({ data, poeSwitches, nvrs, onEdit, onDele
         </Card>
     );
 }
-
-    
