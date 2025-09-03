@@ -167,7 +167,7 @@ const initialTVScreens: TVScreen[] = [
     { id: 'tv2', type: 'tv', name: 'Break Room TV', ipAddress: '192.168.2.201', location: 'Break Room', status: 'inactive', size: 65, nvrId: 'nvr2' },
 ];
 
-const locationCoordinates: Record<string, { top: string; left: string }> = {
+const initialLocationCoordinates: Record<string, { top: string; left: string }> = {
   "Main Lobby": { top: "30%", left: "25%" },
   "Exterior Parking": { top: "75%", left: "15%" },
   "Second Floor, Office 204": { top: "35%", left: "60%" },
@@ -199,6 +199,7 @@ export default function Home() {
   const [mapImageUrl, setMapImageUrl] = useState<string>('https://picsum.photos/seed/map/1200/675');
   const [zoomLevel, setZoomLevel] = useState(1);
   const mapContainerRef = useRef<HTMLDivElement>(null);
+  const [locationCoordinates, setLocationCoordinates] = useState(initialLocationCoordinates);
 
   const { toast } = useToast();
   const stickerRef = useRef<HTMLDivElement>(null);
@@ -428,6 +429,39 @@ export default function Home() {
       reader.readAsDataURL(file);
     }
   };
+  
+  const handleDragStart = (e: React.DragEvent, deviceId: string) => {
+    e.dataTransfer.setData("deviceId", deviceId);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const deviceId = e.dataTransfer.getData("deviceId");
+    const map = mapContainerRef.current;
+    if (!map || !deviceId) return;
+
+    const mapRect = map.getBoundingClientRect();
+    const x = e.clientX - mapRect.left;
+    const y = e.clientY - mapRect.top;
+    
+    const newTop = `${(y / mapRect.height) * 100}%`;
+    const newLeft = `${(x / mapRect.width) * 100}%`;
+
+    const newLocationName = prompt("Enter a name for this new location (or leave blank to cancel):");
+
+    if (newLocationName) {
+        setLocationCoordinates(prev => ({
+            ...prev,
+            [newLocationName]: { top: newTop, left: newLeft }
+        }));
+        updateDeviceById(deviceId, { location: newLocationName });
+        toast({ title: "Location Updated", description: `Device moved to new location: ${newLocationName}`});
+    }
+  };
 
   const renderDeviceSticker = (device: Device | null): string => {
     if (!device) return '';
@@ -626,8 +660,12 @@ export default function Home() {
                     </CardHeader>
                     <CardContent>
                         <TooltipProvider>
-                            <div ref={mapContainerRef} className="relative w-full aspect-[16/9] bg-muted rounded-lg overflow-auto border">
-                                <div className="relative w-full h-full" style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'center center' }}>
+                            <div 
+                                className="relative w-full aspect-[16/9] bg-muted rounded-lg overflow-auto border"
+                                onDragOver={handleDragOver}
+                                onDrop={handleDrop}
+                            >
+                                <div ref={mapContainerRef} className="relative w-full h-full" style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'center center' }}>
                                     <img src={mapImageUrl} alt="Office Map" className="w-full h-full object-contain" data-ai-hint="office floor plan" />
                                     {allDevices.map(device => {
                                         const coords = locationCoordinates[device.location];
@@ -635,7 +673,12 @@ export default function Home() {
                                         return (
                                             <Tooltip key={device.id} delayDuration={100}>
                                                 <TooltipTrigger asChild>
-                                                    <div className="absolute transform -translate-x-1/2 -translate-y-1/2" style={{ top: coords.top, left: coords.left }}>
+                                                    <div 
+                                                        draggable
+                                                        onDragStart={(e) => handleDragStart(e, device.id)}
+                                                        className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing" 
+                                                        style={{ top: coords.top, left: coords.left }}
+                                                    >
                                                         <div className="relative flex items-center justify-center">
                                                             <div className={cn("w-4 h-4 rounded-full", getPinColor(device.status))}></div>
                                                             <div className={cn("absolute w-4 h-4 rounded-full animate-ping", getPinColor(device.status), {'hidden': pinging[device.id] || device.status !== 'error' })}></div>
@@ -1251,5 +1294,7 @@ function DeviceTable<T extends Device>({ data, poeSwitches, nvrs, onEdit, onDele
         </Card>
     );
 }
+
+    
 
     
