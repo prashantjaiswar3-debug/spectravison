@@ -38,10 +38,9 @@ export type POESwitch = {
   location: string;
   status: DeviceStatus;
   portCount: number;
+  uplinkPortCount?: number;
   powerBudget: string; // e.g., '250W'
   type: 'poe';
-  uplink1Port?: string;
-  uplink2Port?: string;
   derivedStatus?: DeviceStatus;
   hasInactiveCameras?: boolean;
 };
@@ -60,5 +59,6 @@ export type TVScreen = {
 export type Device = Camera | NVR | POESwitch | TVScreen;
 
     
+
 
 
