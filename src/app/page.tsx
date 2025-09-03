@@ -443,34 +443,37 @@ export default function Home() {
     const deviceId = e.dataTransfer.getData("deviceId");
     const map = mapContainerRef.current;
     if (!map || !deviceId) return;
-  
+
     const device = allDevices.find(d => d.id === deviceId);
     if (!device) return;
-
-    const mapRect = map.getBoundingClientRect();
-    const x = e.clientX - mapRect.left;
-    const y = e.clientY - mapRect.top;
-    
-    const newTop = `${(y / mapRect.height) * 100}%`;
-    const newLeft = `${(x / mapRect.width) * 100}%`;
   
-    // If the device already has a mapped location, just update its coordinates
+    const mapRect = map.getBoundingClientRect();
+    // Adjust for the current scale
+    const x = (e.clientX - mapRect.left) / zoomLevel;
+    const y = (e.clientY - mapRect.top) / zoomLevel;
+    
+    // Ensure coordinates are within the map boundaries, relative to the unscaled map dimensions
+    const newLeft = `${(x / map.clientWidth) * 100}%`;
+    const newTop = `${(y / map.clientHeight) * 100}%`;
+
+    // If the device already has a location on the map, we're just moving it
     if (device.location && locationCoordinates[device.location]) {
       setLocationCoordinates(prev => ({
         ...prev,
         [device.location]: { top: newTop, left: newLeft }
       }));
-      toast({ title: "Location Adjusted", description: `${device.name}'s pin for ${device.location} moved.` });
+      toast({ title: "Location Adjusted", description: `${device.name}'s pin moved.` });
     } else {
       // If it's an unplaced device, prompt for a new location name
-      const newLocationName = prompt("Enter a name for this new location (or leave blank to cancel):");
-      if (newLocationName) {
+      const newLocationName = prompt("Enter a name for this new location:", device.location || '');
+      if (newLocationName && newLocationName.trim() !== '') {
         setLocationCoordinates(prev => ({
           ...prev,
           [newLocationName]: { top: newTop, left: newLeft }
         }));
+        // Update the device's location property
         updateDeviceById(deviceId, { location: newLocationName });
-        toast({ title: "Location Set", description: `${device.name} moved to new location: ${newLocationName}`});
+        toast({ title: "Location Set", description: `${device.name} placed at ${newLocationName}`});
       }
     }
   };
@@ -671,8 +674,8 @@ export default function Home() {
                                     onDragOver={handleDragOver}
                                     onDrop={handleDrop}
                                 >
-                                    <div ref={mapContainerRef} className="relative w-full h-full" style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'center center' }}>
-                                        {mapImageUrl && <img src={mapImageUrl} alt="Office Map" className="w-full h-full object-contain" />}
+                                    <div ref={mapContainerRef} className="relative w-full h-full" style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'top left' }}>
+                                        {mapImageUrl && <img src={mapImageUrl} alt="Office Map" className="w-full h-full object-contain pointer-events-none" />}
                                         {allDevices.map(device => {
                                             const coords = locationCoordinates[device.location];
                                             if (!coords) return null;
