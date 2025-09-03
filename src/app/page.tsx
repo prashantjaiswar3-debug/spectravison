@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef, type DragEvent } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
@@ -22,9 +22,12 @@ import {
   Tv2,
   Printer,
   QrCode,
+  Map,
+  List,
+  Upload,
 } from 'lucide-react';
 
-import type { Camera as CameraType, NVR, POESwitch, Device, DeviceStatus, TVScreen, DeviceType } from '@/types';
+import type { Camera as CameraType, NVR, POESwitch, Device, DeviceStatus, TVScreen, DeviceType, Location } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -133,19 +136,19 @@ const deviceFormSchema = z.discriminatedUnion('deviceType', [
 type DeviceFormValues = z.infer<typeof deviceFormSchema>;
 
 const initialCameras: CameraType[] = [
-  { id: 'a1b2c3d4', type: 'camera', name: 'Lobby Cam 1', ipAddress: '192.168.1.101', location: 'Main Lobby', installationDate: new Date('2023-01-15'), status: 'active', screenChannelNumber: 1, zone: 'A', poeSwitchId: 'poe1', poePortNumber: 1, cameraType: 'dome', quality: 4, nvrId: 'nvr1', nvrChannelNumber: 1 },
-  { id: 'e5f6g7h8', type: 'camera', name: 'Parking Lot Cam', ipAddress: '192.168.1.102', location: 'Exterior Parking', installationDate: new Date('2022-11-20'), status: 'inactive', screenChannelNumber: 2, zone: 'C', poeSwitchId: 'poe1', poePortNumber: 2, cameraType: 'bullet', quality: 5, nvrId: 'nvr1', nvrChannelNumber: 2 },
+  { id: 'a1b2c3d4', type: 'camera', name: 'Lobby Cam 1', ipAddress: '192.168.1.101', location: 'Main Lobby', installationDate: new Date('2023-01-15'), status: 'active', screenChannelNumber: 1, zone: 'A', poeSwitchId: 'poe1', poePortNumber: 1, cameraType: 'dome', quality: 4, nvrId: 'nvr1', nvrChannelNumber: 1, locationId: 'loc1' },
+  { id: 'e5f6g7h8', type: 'camera', name: 'Parking Lot Cam', ipAddress: '192.168.1.102', location: 'Exterior Parking', installationDate: new Date('2022-11-20'), status: 'inactive', screenChannelNumber: 2, zone: 'C', poeSwitchId: 'poe1', poePortNumber: 2, cameraType: 'bullet', quality: 5, nvrId: 'nvr1', nvrChannelNumber: 2, locationId: 'loc2' },
   { id: 'i9j0k1l2', type: 'camera', name: 'Office Cam 204', ipAddress: '192.168.2.55', location: 'Second Floor, Office 204', installationDate: new Date('2023-05-10'), status: 'active', screenChannelNumber: 3, zone: 'B', poeSwitchId: 'poe2', poePortNumber: 5, cameraType: 'ptz', quality: 8, nvrId: 'nvr2', nvrChannelNumber: 1 },
   { id: 'm3n4o5p6', type: 'camera', name: 'Rooftop East', ipAddress: '192.168.1.108', location: 'Rooftop', installationDate: new Date('2021-08-01'), status: 'error', screenChannelNumber: 4, zone: 'C', poeSwitchId: 'poe2', poePortNumber: 8, cameraType: 'bullet', quality: 3, nvrId: 'nvr2', nvrChannelNumber: 4 },
 ];
 
 const initialNVRs: NVR[] = [
-  { id: 'nvr1', type: 'nvr', name: 'Main NVR', ipAddress: '192.168.1.50', location: 'Server Room', status: 'active', storageCapacity: '16TB', channels: 16 },
+  { id: 'nvr1', type: 'nvr', name: 'Main NVR', ipAddress: '192.168.1.50', location: 'Server Room', status: 'active', storageCapacity: '16TB', channels: 16, locationId: 'loc3' },
   { id: 'nvr2', type: 'nvr', name: 'Backup NVR', ipAddress: '192.168.1.51', location: 'Server Room', status: 'inactive', storageCapacity: '8TB', channels: 8 },
 ];
 
 const initialPOESwitches: POESwitch[] = [
-  { id: 'poe1', type: 'poe', name: 'Lobby Switch', location: '1st Floor IT Closet', status: 'active', portCount: 8, powerBudget: '120W' },
+  { id: 'poe1', type: 'poe', name: 'Lobby Switch', location: '1st Floor IT Closet', status: 'active', portCount: 8, powerBudget: '120W', locationId: 'loc4' },
   { id: 'poe2', type: 'poe', name: 'Office Switch', location: '2nd Floor IT Closet', status: 'active', portCount: 16, powerBudget: '250W' },
   { id: 'poe3', type: 'poe', name: 'Warehouse Switch', location: 'Unassigned', status: 'active', portCount: 8, powerBudget: '120W' },
 ];
@@ -153,6 +156,13 @@ const initialPOESwitches: POESwitch[] = [
 const initialTVScreens: TVScreen[] = [
     { id: 'tv1', type: 'tv', name: 'Lobby TV', ipAddress: '192.168.1.200', location: 'Main Lobby', status: 'active', size: 55, nvrId: 'nvr1' },
     { id: 'tv2', type: 'tv', name: 'Break Room TV', ipAddress: '192.168.2.201', location: 'Break Room', status: 'inactive', size: 65, nvrId: 'nvr2' },
+];
+
+const initialLocations: Location[] = [
+  { id: 'loc1', name: 'Main Lobby', x: 100, y: 150 },
+  { id: 'loc2', name: 'Exterior Parking', x: 400, y: 300 },
+  { id: 'loc3', name: 'Server Room', x: 250, y: 50 },
+  { id: 'loc4', name: '1st Floor IT Closet', x: 280, y: 80 },
 ];
 
 
@@ -168,6 +178,11 @@ export default function Home() {
   const [editingDevice, setEditingDevice] = useState<Device | null>(null);
   const [pinging, setPinging] = useState<Record<string, boolean>>({});
   const [stickerDevice, setStickerDevice] = useState<Device | null>(null);
+  
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
+  const [mapImage, setMapImage] = useState<string | null>(null);
+  const [locations, setLocations] = useState<Location[]>(initialLocations);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
 
   const { toast } = useToast();
   const stickerRef = useRef<HTMLDivElement>(null);
@@ -199,6 +214,8 @@ export default function Home() {
   }, [poeSwitches, cameras]);
 
   const allDevices: Device[] = useMemo(() => [...cameras, ...nvrs, ...derivedPoeSwitches, ...tvScreens], [cameras, nvrs, derivedPoeSwitches, tvScreens]);
+  const placedDevices = useMemo(() => allDevices.filter(d => d.locationId && locations.find(l => l.id === d.locationId)), [allDevices, locations]);
+  const unplacedDevices = useMemo(() => allDevices.filter(d => !d.locationId || !locations.find(l => l.id === d.locationId)), [allDevices, locations]);
 
   const poeSwitchMap = useMemo(() => poeSwitches.reduce((acc, sw) => ({ ...acc, [sw.id]: sw.name }), {} as Record<string, string>), [poeSwitches]);
   const nvrMap = useMemo(() => nvrs.reduce((acc, nvr) => ({ ...acc, [nvr.id]: nvr.name }), {} as Record<string, string>), [nvrs]);
@@ -461,6 +478,81 @@ export default function Home() {
     }
   }
 
+  const handleMapImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setMapImage(event.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleDragStart = (e: DragEvent, deviceId: string, isPlaced: boolean) => {
+    e.dataTransfer.setData('deviceId', deviceId);
+    e.dataTransfer.setData('isPlaced', String(isPlaced));
+
+    if (isPlaced) {
+      const device = allDevices.find(d => d.id === deviceId);
+      const location = locations.find(l => l.id === device?.locationId);
+      if (location) {
+        const offsetX = e.clientX - location.x;
+        const offsetY = e.clientY - location.y;
+        e.dataTransfer.setData('offsetX', String(offsetX));
+        e.dataTransfer.setData('offsetY', String(offsetY));
+      }
+    }
+  };
+  
+  const handleDrop = (e: DragEvent) => {
+      e.preventDefault();
+      const deviceId = e.dataTransfer.getData('deviceId');
+      const isPlaced = e.dataTransfer.getData('isPlaced') === 'true';
+      const mapRect = mapContainerRef.current?.getBoundingClientRect();
+
+      if (!deviceId || !mapRect) return;
+
+      const x = e.clientX - mapRect.left;
+      const y = e.clientY - mapRect.top;
+
+      if (isPlaced) {
+          // Move existing pin
+          const device = allDevices.find(d => d.id === deviceId);
+          if (device && device.locationId) {
+              setLocations(prev => prev.map(loc => loc.id === device.locationId ? {...loc, x, y} : loc));
+          }
+      } else {
+          // Place a new pin
+          const locationName = prompt('Enter a name for this new location:');
+          if (locationName) {
+              const newLocation: Location = { id: crypto.randomUUID(), name: locationName, x, y };
+              setLocations(prev => [...prev, newLocation]);
+              updateDeviceById(deviceId, { locationId: newLocation.id, location: newLocation.name });
+          }
+      }
+  };
+
+
+  const getDeviceIcon = (device: Device) => {
+    const status = 'derivedStatus' in device ? device.derivedStatus : device.status;
+    let color = 'text-gray-400';
+    if (status === 'active') color = 'text-green-500';
+    if (status === 'inactive') color = 'text-yellow-500';
+    if (status === 'error') color = 'text-red-500';
+  
+    const flashing = 'hasInactiveCameras' in device && device.hasInactiveCameras ? 'animate-pulse' : '';
+    const className = `w-6 h-6 ${color} ${flashing}`;
+
+    switch (device.type) {
+      case 'camera': return <Camera className={className} />;
+      case 'nvr': return <Server className={className} />;
+      case 'poe': return <SwitchIcon className={className} />;
+      case 'tv': return <Tv2 className={className} />;
+      default: return null;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground p-4 sm:p-6 lg:p-8">
       <main className="max-w-7xl mx-auto">
@@ -469,61 +561,165 @@ export default function Home() {
             <Camera className="w-8 h-8 text-primary" />
             <h1 className="text-3xl font-bold tracking-tight">CCTV Dashboard</h1>
           </div>
-          <div className="flex gap-2">
-            <Button onClick={handlePrintAllStickers} variant="outline">
-              <Printer /> Print All Stickers
-            </Button>
-            <Button onClick={() => { setEditingDevice(null); form.reset({deviceType: 'camera', name: '', location: ''}); setIsFormOpen(true); }}>
-              <Plus /> Add Device
-            </Button>
+          <div className="flex items-center gap-4">
+            <div className='flex items-center gap-1 rounded-md bg-muted p-1 text-muted-foreground'>
+               <Button size="sm" variant={viewMode === 'list' ? 'secondary' : 'ghost'} onClick={() => setViewMode('list')} className="gap-1"><List className="w-4 h-4" />List</Button>
+               <Button size="sm" variant={viewMode === 'map' ? 'secondary' : 'ghost'} onClick={() => setViewMode('map')} className="gap-1"><Map className="w-4 h-4"/>Map</Button>
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={handlePrintAllStickers} variant="outline">
+                <Printer /> Print All Stickers
+              </Button>
+              <Button onClick={() => { setEditingDevice(null); form.reset({deviceType: 'camera', name: '', location: ''}); setIsFormOpen(true); }}>
+                <Plus /> Add Device
+              </Button>
+            </div>
           </div>
         </header>
         
-        <Card className="mb-8">
-          <CardContent className="p-4 flex flex-col sm:flex-row gap-4 items-center justify-between">
-            <div className="relative w-full sm:flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-              <Input
-                placeholder="Search all devices..."
-                className="pl-10"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-            <div className="flex items-center gap-2 self-end sm:self-center">
-              <Button variant={statusFilter === 'all' ? 'secondary' : 'ghost'} onClick={() => setStatusFilter('all')}>All</Button>
-              <Button variant={statusFilter === 'active' ? 'secondary' : 'ghost'} onClick={() => setStatusFilter('active')}>Active</Button>
-              <Button variant={statusFilter === 'inactive' ? 'secondary' : 'ghost'} onClick={() => setStatusFilter('inactive')}>Inactive</Button>
-               <Button variant={statusFilter === 'error' ? 'secondary' : 'ghost'} onClick={() => setStatusFilter('error')}>Error</Button>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Tabs defaultValue="cameras" className="w-full">
-            <div className="flex justify-between items-center mb-4">
-                <TabsList>
-                    <TabsTrigger value="cameras"><Camera className="mr-2"/>Cameras ({filteredCameras.length})</TabsTrigger>
-                    <TabsTrigger value="nvrs"><Server className="mr-2"/>NVRs ({filteredNvrs.length})</TabsTrigger>
-                    <TabsTrigger value="poe"><SwitchIcon className="mr-2"/>PoE Switches ({filteredPoeSwitches.length})</TabsTrigger>
-                    <TabsTrigger value="tvs"><Tv2 className="mr-2"/>TV Screens ({filteredTvScreens.length})</TabsTrigger>
-                </TabsList>
-            </div>
+        {viewMode === 'list' && (
+          <>
+            <Card className="mb-8">
+              <CardContent className="p-4 flex flex-col sm:flex-row gap-4 items-center justify-between">
+                <div className="relative w-full sm:flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                  <Input
+                    placeholder="Search all devices..."
+                    className="pl-10"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+                <div className="flex items-center gap-2 self-end sm:self-center">
+                  <Button variant={statusFilter === 'all' ? 'secondary' : 'ghost'} onClick={() => setStatusFilter('all')}>All</Button>
+                  <Button variant={statusFilter === 'active' ? 'secondary' : 'ghost'} onClick={() => setStatusFilter('active')}>Active</Button>
+                  <Button variant={statusFilter === 'inactive' ? 'secondary' : 'ghost'} onClick={() => setStatusFilter('inactive')}>Inactive</Button>
+                   <Button variant={statusFilter === 'error' ? 'secondary' : 'ghost'} onClick={() => setStatusFilter('error')}>Error</Button>
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Tabs defaultValue="cameras" className="w-full">
+                <div className="flex justify-between items-center mb-4">
+                    <TabsList>
+                        <TabsTrigger value="cameras"><Camera className="mr-2"/>Cameras ({filteredCameras.length})</TabsTrigger>
+                        <TabsTrigger value="nvrs"><Server className="mr-2"/>NVRs ({filteredNvrs.length})</TabsTrigger>
+                        <TabsTrigger value="poe"><SwitchIcon className="mr-2"/>PoE Switches ({filteredPoeSwitches.length})</TabsTrigger>
+                        <TabsTrigger value="tvs"><Tv2 className="mr-2"/>TV Screens ({filteredTvScreens.length})</TabsTrigger>
+                    </TabsList>
+                </div>
 
-            <>
-              <TabsContent value="cameras">
-                  <DeviceTable<CameraType> data={filteredCameras} poeSwitches={poeSwitches} nvrs={nvrs} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'camera')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} onPrintSticker={setStickerDevice} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="camera" />
-              </TabsContent>
-              <TabsContent value="nvrs">
-                  <DeviceTable<NVR> data={filteredNvrs} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'nvr')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} onPrintSticker={setStickerDevice} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="nvr" />
-              </TabsContent>
-              <TabsContent value="poe">
-                  <DeviceTable<POESwitch & { derivedStatus?: DeviceStatus }> data={filteredPoeSwitches} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'poe')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} onPrintSticker={setStickerDevice} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="poe" />
-              </TabsContent>
-                <TabsContent value="tvs">
-                  <DeviceTable<TVScreen> data={filteredTvScreens} nvrs={nvrs} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'tv')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} onPrintSticker={setStickerDevice} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="tv" />
-              </TabsContent>
-            </>
-        </Tabs>
+                <>
+                  <TabsContent value="cameras">
+                      <DeviceTable<CameraType> data={filteredCameras} poeSwitches={poeSwitches} nvrs={nvrs} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'camera')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} onPrintSticker={setStickerDevice} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="camera" />
+                  </TabsContent>
+                  <TabsContent value="nvrs">
+                      <DeviceTable<NVR> data={filteredNvrs} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'nvr')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} onPrintSticker={setStickerDevice} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="nvr" />
+                  </TabsContent>
+                  <TabsContent value="poe">
+                      <DeviceTable<POESwitch & { derivedStatus?: DeviceStatus }> data={filteredPoeSwitches} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'poe')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} onPrintSticker={setStickerDevice} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="poe" />
+                  </TabsContent>
+                    <TabsContent value="tvs">
+                      <DeviceTable<TVScreen> data={filteredTvScreens} nvrs={nvrs} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'tv')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} onPrintSticker={setStickerDevice} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="tv" />
+                  </TabsContent>
+                </>
+            </Tabs>
+          </>
+        )}
+
+        {viewMode === 'map' && (
+           <div className="grid grid-cols-1 md:grid-cols-[1fr_300px] gap-8">
+            <Card
+                className="w-full h-[600px] relative overflow-hidden"
+                ref={mapContainerRef}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={handleDrop}
+            >
+              {mapImage ? (
+                <img src={mapImage} alt="Device Map" className="w-full h-full object-contain" />
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                    <Map className="w-16 h-16 mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">Device Map</h3>
+                    <p className="mb-4 text-center">Upload a floor plan or map image to get started.</p>
+                     <Button asChild variant="outline">
+                        <label>
+                          <Upload className="mr-2" />
+                          Upload Map
+                          <input type="file" accept="image/*" className="sr-only" onChange={handleMapImageUpload} />
+                        </label>
+                      </Button>
+                </div>
+              )}
+                {placedDevices.map(device => {
+                    const location = locations.find(l => l.id === device.locationId);
+                    if (!location) return null;
+                    const status = 'derivedStatus' in device ? device.derivedStatus : device.status;
+                    const isFlashing = 'hasInactiveCameras' in device && device.hasInactiveCameras;
+                    return (
+                        <TooltipProvider key={device.id}>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <div
+                                        draggable
+                                        onDragStart={(e) => handleDragStart(e, device.id, true)}
+                                        className={cn(
+                                            'absolute -translate-x-1/2 -translate-y-1/2 cursor-grab p-1 rounded-full bg-background/70 backdrop-blur-sm',
+                                            isFlashing && 'animate-pulse'
+                                        )}
+                                        style={{ left: location.x, top: location.y }}
+                                    >
+                                        {getDeviceIcon(device)}
+                                    </div>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p className="font-bold">{device.name}</p>
+                                    <p>{device.location}</p>
+                                    <p className="capitalize">Status: {status}</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    )
+                })}
+            </Card>
+
+            <div className="flex flex-col gap-4">
+                {mapImage && (
+                    <Button asChild variant="outline" size="sm">
+                       <label className="w-full">
+                         <Upload className="mr-2" />
+                         Change Map
+                         <input type="file" accept="image/*" className="sr-only" onChange={handleMapImageUpload} />
+                       </label>
+                     </Button>
+                )}
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Unplaced Devices</CardTitle>
+                    </CardHeader>
+                    <CardContent className="max-h-[500px] overflow-y-auto">
+                        {unplacedDevices.length > 0 ? (
+                            <div className="space-y-2">
+                                {unplacedDevices.map(device => (
+                                    <div
+                                        key={device.id}
+                                        draggable
+                                        onDragStart={(e) => handleDragStart(e, device.id, false)}
+                                        className="flex items-center gap-2 p-2 rounded-md border bg-muted/50 cursor-grab"
+                                    >
+                                        {getDeviceIcon(device)}
+                                        <span className="text-sm font-medium">{device.name}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="text-sm text-muted-foreground">All devices have been placed.</p>
+                        )}
+                    </CardContent>
+                </Card>
+            </div>
+        </div>
+        )}
       </main>
 
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
