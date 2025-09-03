@@ -446,22 +446,7 @@ export default function Home() {
   
     const device = allDevices.find(d => d.id === deviceId);
     if (!device) return;
-  
-    // Check if dropped on an existing pin
-    let target = e.target as HTMLElement;
-    while (target && target !== map) {
-      if (target.hasAttribute('data-pin-location')) {
-        const existingLocationName = target.getAttribute('data-pin-location');
-        if (existingLocationName && device.location !== existingLocationName) {
-          updateDeviceById(deviceId, { location: existingLocationName });
-          toast({ title: "Location Updated", description: `${device.name} moved to ${existingLocationName}`});
-        }
-        return; // Exit after handling drop on a pin
-      }
-      target = target.parentElement as HTMLElement;
-    }
-  
-    // If not dropped on a pin, calculate new coordinates
+
     const mapRect = map.getBoundingClientRect();
     const x = e.clientX - mapRect.left;
     const y = e.clientY - mapRect.top;
@@ -469,7 +454,7 @@ export default function Home() {
     const newTop = `${(y / mapRect.height) * 100}%`;
     const newLeft = `${(x / mapRect.width) * 100}%`;
   
-    // If the device already has a mapped location, update its coordinates
+    // If the device already has a mapped location, just update its coordinates
     if (device.location && locationCoordinates[device.location]) {
       setLocationCoordinates(prev => ({
         ...prev,
@@ -477,7 +462,7 @@ export default function Home() {
       }));
       toast({ title: "Location Adjusted", description: `${device.name}'s pin for ${device.location} moved.` });
     } else {
-      // If it's an unplaced device or a device with an unmapped location
+      // If it's an unplaced device, prompt for a new location name
       const newLocationName = prompt("Enter a name for this new location (or leave blank to cancel):");
       if (newLocationName) {
         setLocationCoordinates(prev => ({
@@ -703,7 +688,6 @@ export default function Home() {
                                                             onDragStart={(e) => handleDragStart(e, device.id)}
                                                             className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing p-2" 
                                                             style={{ top: coords.top, left: coords.left }}
-                                                            data-pin-location={device.location}
                                                         >
                                                             <div className="relative flex items-center justify-center">
                                                                 <div className={cn("w-4 h-4 rounded-full", getPinColor(deviceStatus!))}></div>
@@ -1130,22 +1114,6 @@ export default function Home() {
         </DialogContent>
       </Dialog>
       
-      <Dialog open={isReportDialogOpen} onOpenChange={setReportDialogOpen}>
-        <DialogContent className="max-w-2xl w-full">
-            <DialogHeader>
-              <DialogTitle>AI-Generated Camera Report</DialogTitle>
-              <DialogDescription>
-                This feature is disabled in offline mode.
-              </DialogDescription>
-            </DialogHeader>
-             <DialogFooter>
-                <Button type="button" variant="secondary" onClick={() => setReportDialogOpen(false)}>
-                    Close
-                </Button>
-              </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       <Dialog open={!!stickerDevice} onOpenChange={(open) => !open && setStickerDevice(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
