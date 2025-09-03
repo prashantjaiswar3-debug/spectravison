@@ -29,6 +29,7 @@ import {
   Upload,
   ZoomIn,
   ZoomOut,
+  GripVertical,
 } from 'lucide-react';
 
 import type { Camera as CameraType, NVR, POESwitch, Device, DeviceStatus, TVScreen, DeviceType } from '@/types';
@@ -160,6 +161,7 @@ const initialNVRs: NVR[] = [
 const initialPOESwitches: POESwitch[] = [
   { id: 'poe1', type: 'poe', name: 'Lobby Switch', location: '1st Floor IT Closet', status: 'active', portCount: 8, powerBudget: '120W' },
   { id: 'poe2', type: 'poe', name: 'Office Switch', location: '2nd Floor IT Closet', status: 'active', portCount: 16, powerBudget: '250W' },
+  { id: 'poe3', type: 'poe', name: 'Warehouse Switch', location: 'Unassigned', status: 'active', portCount: 8, powerBudget: '120W' },
 ];
 
 const initialTVScreens: TVScreen[] = [
@@ -554,6 +556,11 @@ export default function Home() {
   const filteredPoeSwitches = useMemo(() => filterDevices(poeSwitches, searchTerm, statusFilter), [poeSwitches, searchTerm, statusFilter]);
   const filteredTvScreens = useMemo(() => filterDevices(tvScreens, searchTerm, statusFilter), [tvScreens, searchTerm, statusFilter]);
 
+  const unmappedDevices = useMemo(() => {
+    const mappedLocations = Object.keys(locationCoordinates);
+    return allDevices.filter(device => !mappedLocations.includes(device.location));
+  }, [allDevices, locationCoordinates]);
+
 
   const getStatusBadgeVariant = (status: DeviceStatus) => {
     switch (status) {
@@ -566,12 +573,12 @@ export default function Home() {
     }
   }
   
-  const getDeviceIcon = (device: Device) => {
+  const getDeviceIcon = (device: Device, className: string = "w-5 h-5") => {
     switch (device.type) {
-        case 'camera': return <Camera className="w-5 h-5" />;
-        case 'nvr': return <Server className="w-5 h-5" />;
-        case 'poe': return <SwitchIcon className="w-5 h-5" />;
-        case 'tv': return <Tv2 className="w-5 h-5" />;
+        case 'camera': return <Camera className={className} />;
+        case 'nvr': return <Server className={className} />;
+        case 'poe': return <SwitchIcon className={className} />;
+        case 'tv': return <Tv2 className={className} />;
         default: return null;
     }
   };
@@ -655,78 +662,113 @@ export default function Home() {
                 </TabsContent>
                 </>
             ) : (
-                <Card>
-                    <CardHeader className="flex-row items-center justify-between">
-                      <CardTitle>Device Map</CardTitle>
-                      <div className="flex items-center gap-2">
-                          <input
-                            type="file"
-                            ref={mapUploadInputRef}
-                            onChange={handleMapImageUpload}
-                            accept="image/*"
-                            className="hidden"
-                          />
-                          <Button variant="outline" onClick={() => mapUploadInputRef.current?.click()}>
-                              <Upload /> Upload Map
-                          </Button>
-                          <Button variant="outline" size="icon" onClick={() => setZoomLevel(prev => Math.min(prev + 0.1, 3))}><ZoomIn /></Button>
-                          <Slider
-                            value={[zoomLevel]}
-                            onValueChange={(value) => setZoomLevel(value[0])}
-                            min={0.5}
-                            max={3}
-                            step={0.1}
-                            className="w-32"
-                          />
-                          <Button variant="outline" size="icon" onClick={() => setZoomLevel(prev => Math.max(prev - 0.1, 0.5))}><ZoomOut /></Button>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                        <TooltipProvider>
-                            <div 
-                                className="relative w-full aspect-[16/9] bg-muted rounded-lg overflow-auto border"
-                                onDragOver={handleDragOver}
-                                onDrop={handleDrop}
-                            >
-                                <div ref={mapContainerRef} className="relative w-full h-full" style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'center center' }}>
-                                    <img src={mapImageUrl} alt="Office Map" className="w-full h-full object-contain" data-ai-hint="office floor plan" />
-                                    {allDevices.map(device => {
-                                        const coords = locationCoordinates[device.location];
-                                        if (!coords) return null;
-                                        return (
-                                            <Tooltip key={device.id} delayDuration={100}>
-                                                <TooltipTrigger asChild>
-                                                    <div 
-                                                        draggable
-                                                        onDragStart={(e) => handleDragStart(e, device.id)}
-                                                        className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing p-2" 
-                                                        style={{ top: coords.top, left: coords.left }}
-                                                        data-pin-location={device.location}
-                                                    >
-                                                        <div className="relative flex items-center justify-center">
-                                                            <div className={cn("w-4 h-4 rounded-full", getPinColor(device.status))}></div>
-                                                            <div className={cn("absolute w-4 h-4 rounded-full animate-ping", getPinColor(device.status), {'hidden': pinging[device.id] || device.status !== 'error' })}></div>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <Card className="lg:col-span-2">
+                        <CardHeader className="flex-row items-center justify-between">
+                        <CardTitle>Device Map</CardTitle>
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="file"
+                                ref={mapUploadInputRef}
+                                onChange={handleMapImageUpload}
+                                accept="image/*"
+                                className="hidden"
+                            />
+                            <Button variant="outline" onClick={() => mapUploadInputRef.current?.click()}>
+                                <Upload /> Upload Map
+                            </Button>
+                            <Button variant="outline" size="icon" onClick={() => setZoomLevel(prev => Math.min(prev + 0.1, 3))}><ZoomIn /></Button>
+                            <Slider
+                                value={[zoomLevel]}
+                                onValueChange={(value) => setZoomLevel(value[0])}
+                                min={0.5}
+                                max={3}
+                                step={0.1}
+                                className="w-32"
+                            />
+                            <Button variant="outline" size="icon" onClick={() => setZoomLevel(prev => Math.max(prev - 0.1, 0.5))}><ZoomOut /></Button>
+                        </div>
+                        </CardHeader>
+                        <CardContent>
+                            <TooltipProvider>
+                                <div 
+                                    className="relative w-full aspect-[16/9] bg-muted rounded-lg overflow-auto border"
+                                    onDragOver={handleDragOver}
+                                    onDrop={handleDrop}
+                                >
+                                    <div ref={mapContainerRef} className="relative w-full h-full" style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'center center' }}>
+                                        <img src={mapImageUrl} alt="Office Map" className="w-full h-full object-contain" data-ai-hint="office floor plan" />
+                                        {allDevices.map(device => {
+                                            const coords = locationCoordinates[device.location];
+                                            if (!coords) return null;
+                                            return (
+                                                <Tooltip key={device.id} delayDuration={100}>
+                                                    <TooltipTrigger asChild>
+                                                        <div 
+                                                            draggable
+                                                            onDragStart={(e) => handleDragStart(e, device.id)}
+                                                            className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing p-2" 
+                                                            style={{ top: coords.top, left: coords.left }}
+                                                            data-pin-location={device.location}
+                                                        >
+                                                            <div className="relative flex items-center justify-center">
+                                                                <div className={cn("w-4 h-4 rounded-full", getPinColor(device.status))}></div>
+                                                                <div className={cn("absolute w-4 h-4 rounded-full animate-ping", getPinColor(device.status), {'hidden': pinging[device.id] || device.status !== 'error' })}></div>
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                </TooltipTrigger>
-                                                <TooltipContent>
-                                                    <div className="flex items-center gap-2">
-                                                        {getDeviceIcon(device)}
-                                                        <div>
-                                                            <p className="font-bold">{device.name}</p>
-                                                            {'ipAddress' in device && device.ipAddress && <p className="text-sm text-muted-foreground">{device.ipAddress}</p>}
-                                                            <p className="text-sm capitalize">Status: {device.status}</p>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        <div className="flex items-center gap-2">
+                                                            {getDeviceIcon(device)}
+                                                            <div>
+                                                                <p className="font-bold">{device.name}</p>
+                                                                {'ipAddress' in device && device.ipAddress && <p className="text-sm text-muted-foreground">{device.ipAddress}</p>}
+                                                                <p className="text-sm capitalize">Status: {device.status}</p>
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                </TooltipContent>
-                                            </Tooltip>
-                                        );
-                                    })}
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
-                            </div>
-                        </TooltipProvider>
-                    </CardContent>
-                </Card>
+                            </TooltipProvider>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardHeader>
+                           <CardTitle>Unplaced Devices</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <ScrollArea className="h-[calc(100vh-20rem)]">
+                                <div className="space-y-2">
+                                    {unmappedDevices.length > 0 ? (
+                                        unmappedDevices.map(device => (
+                                            <div
+                                                key={device.id}
+                                                draggable
+                                                onDragStart={(e) => handleDragStart(e, device.id)}
+                                                className="flex items-center p-2 rounded-md border bg-card hover:bg-muted cursor-grab active:cursor-grabbing"
+                                            >
+                                                <GripVertical className="h-5 w-5 text-muted-foreground mr-2"/>
+                                                {getDeviceIcon(device, 'h-5 w-5 mr-3')}
+                                                <div className="flex-grow">
+                                                    <p className="font-medium text-sm">{device.name}</p>
+                                                    <p className="text-xs text-muted-foreground">{device.location}</p>
+                                                </div>
+                                                <Badge variant="outline" className={cn('capitalize text-xs', getStatusBadgeVariant(device.status))}>
+                                                    {device.status}
+                                                </Badge>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <p className="text-sm text-muted-foreground text-center py-4">All devices are placed on the map.</p>
+                                    )}
+                                </div>
+                            </ScrollArea>
+                        </CardContent>
+                    </Card>
+                </div>
             )}
         </Tabs>
       </main>
@@ -1318,9 +1360,5 @@ function DeviceTable<T extends Device>({ data, poeSwitches, nvrs, onEdit, onDele
         </Card>
     );
 }
-
-    
-
-    
 
     
