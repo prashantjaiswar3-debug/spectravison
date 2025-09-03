@@ -549,8 +549,8 @@ export default function Home() {
         const entry2 = detailsEntries[i + 1];
         tableRows += `
             <tr>
-                <td><span class="detail-key">${entry1[0]}</span> : ${entry1[1]}</td>
-                ${entry2 ? `<td><span class="detail-key">${entry2[0]}</span> : ${entry2[1]}</td>` : '<td></td>'}
+                <td><span class="detail-key">${entry1[0]}</span>: ${entry1[1]}</td>
+                ${entry2 ? `<td><span class="detail-key">${entry2[0]}</span>: ${entry2[1]}</td>` : '<td></td>'}
             </tr>
         `;
     }
