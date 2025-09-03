@@ -874,7 +874,7 @@ export default function Home() {
                         render={({ field }) => (
                         <FormItem>
                             <FormLabel>Switch</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value || ''}>
+                            <Select onValueChange={field.onChange} value={field.value || ''}>
                                 <FormControl>
                                     <SelectTrigger>
                                     <SelectValue placeholder="Select a switch" />
@@ -1044,7 +1044,7 @@ interface DeviceTableProps<T extends Device & { derivedStatus?: DeviceStatus }> 
     poeSwitches?: POESwitch[];
     nvrs?: NVR[];
     onEdit?: (item: T) => void;
-    onDelete?: (id: string) => void;
+    onDelete?: (id: string, type: DeviceType) => void;
     onStatusChange: (item: T, newStatus: boolean) => void;
     onPing: (item: T) => void;
     onPrintSticker: (item: T) => void;
@@ -1081,7 +1081,7 @@ function DeviceTable<T extends Device & { derivedStatus?: DeviceStatus }>({ data
                   <TableRow>
                     {type !== 'tv' && <TableHead>Status</TableHead>}
                     <TableHead>Name</TableHead>
-                    {type !== 'poe' && type !== 'tv' && <TableHead>IP Address</TableHead>}
+                    {type !== 'poe' && type !== 'tv' && 'ipAddress' in (data[0] || {}) && <TableHead>IP Address</TableHead>}
                     <TableHead>Location</TableHead>
                     {type === 'camera' && <TableHead>Type</TableHead>}
                     {type === 'camera' && <TableHead>Quality</TableHead>}
@@ -1334,7 +1334,7 @@ function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrint
                 <div className="flex items-center">
                     {getDeviceIcon(item.type)}
                     <span className="font-medium mr-4">{item.name}</span>
-                    { itemStatus && (
+                    { itemStatus && item.type !== 'tv' && (
                       <Badge variant="outline" className={cn('capitalize text-xs', getStatusBadgeVariant(itemStatus))}>
                           {itemStatus}
                       </Badge>
@@ -1514,6 +1514,7 @@ function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrint
     
 
     
+
 
 
 

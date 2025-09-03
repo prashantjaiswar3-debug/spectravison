@@ -56,8 +56,3 @@ export type TVScreen = {
 export type Device = (Camera | NVR | POESwitch | TVScreen) & { status?: DeviceStatus };
 
     
-
-
-
-
-
