@@ -39,7 +39,6 @@ export type POESwitch = {
   status: DeviceStatus;
   portCount: number;
   uplinkPortCount?: number;
-  powerBudget: string; // e.g., '250W'
   type: 'poe';
   derivedStatus?: DeviceStatus;
   hasInactiveCameras?: boolean;
@@ -57,6 +56,7 @@ export type TVScreen = {
 export type Device = (Camera | NVR | POESwitch | TVScreen) & { status?: DeviceStatus };
 
     
+
 
 
 
