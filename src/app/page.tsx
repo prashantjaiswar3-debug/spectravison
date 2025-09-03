@@ -1,10 +1,8 @@
 'use client';
 
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
-import { format } from 'date-fns';
 
 import {
   Camera,
@@ -14,7 +12,6 @@ import {
   Pencil,
   Trash2,
   Loader2,
-  Calendar as CalendarIcon,
   Server,
   Network as SwitchIcon,
   Wifi,
@@ -66,26 +63,13 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
-import {
-  Popover,
-  PopoverTrigger,
-  PopoverContent,
-} from '@/components/ui/popover';
-import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Calendar } from '@/components/ui/calendar';
+
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
@@ -94,49 +78,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Label } from '@/components/ui/label';
+import { DeviceForm } from '@/components/device-forms/DeviceForm';
+import { deviceFormSchema, type DeviceFormValues } from '@/components/device-forms/schemas';
 
-
-const baseDeviceSchema = z.object({
-  name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
-  location: z.string().min(2, { message: 'Location must be at least 2 characters.' }),
-  deviceType: z.enum(['camera', 'nvr', 'poe', 'tv']),
-});
-
-const deviceFormSchema = z.discriminatedUnion('deviceType', [
-  baseDeviceSchema.extend({
-    deviceType: z.literal('camera'),
-    ipAddress: z.string().ip({ version: 'v4', message: 'Invalid IPv4 address.' }),
-    installationDate: z.date({ required_error: 'An installation date is required.' }),
-    screenChannelNumber: z.coerce.number().int().min(1, { message: 'Channel number must be at least 1.' }),
-    zone: z.string().min(1, { message: 'Zone is required.' }),
-    poeSwitchId: z.string().min(1, { message: 'A PoE switch must be selected.' }),
-    poePortNumber: z.coerce.number().int().min(1, { message: 'PoE port number must be at least 1.' }),
-    cameraType: z.enum(['bullet', 'dome', 'ptz'], { required_error: 'Camera type is required.' }),
-    quality: z.coerce.number().int().min(1, 'Quality must be at least 1MP.').max(15, 'Quality cannot exceed 15MP.'),
-    nvrId: z.string().min(1, { message: 'An NVR must be selected.' }),
-    nvrChannelNumber: z.coerce.number().int().min(1, { message: 'NVR channel number must be at least 1.' }),
-  }),
-  baseDeviceSchema.extend({
-    deviceType: z.literal('nvr'),
-    ipAddress: z.string().ip({ version: 'v4', message: 'Invalid IPv4 address.' }),
-    storageCapacity: z.string().min(1, { message: 'Storage capacity is required.' }),
-    channels: z.coerce.number().int().min(1, { message: 'Channels must be at least 1.' }),
-    switchId: z.string().optional(),
-    switchPortNumber: z.coerce.number().int().min(1).optional(),
-  }),
-  baseDeviceSchema.extend({
-    deviceType: z.literal('poe'),
-    portCount: z.coerce.number().int().min(1, { message: 'PoE port count must be at least 1.' }),
-    uplinkPortCount: z.coerce.number().int().min(0).optional(),
-  }),
-  baseDeviceSchema.extend({
-    deviceType: z.literal('tv'),
-    size: z.coerce.number().int().min(1, { message: 'Screen size must be positive.' }),
-    nvrId: z.string().min(1, { message: 'An NVR must be selected.' }),
-  }),
-]);
-
-type DeviceFormValues = z.infer<typeof deviceFormSchema>;
 
 const initialCameras: CameraType[] = [
   { id: 'a1b2c3d4', type: 'camera', name: 'Lobby Cam 1', ipAddress: '192.168.1.101', location: 'Main Lobby', installationDate: new Date('2023-01-15'), status: 'active', screenChannelNumber: 1, zone: 'A', poeSwitchId: 'poe1', poePortNumber: 1, cameraType: 'dome', quality: 4, nvrId: 'nvr1', nvrChannelNumber: 1 },
@@ -174,6 +118,7 @@ export default function Home() {
   const [pinging, setPinging] = useState<Record<string, boolean>>({});
   const [stickerDevice, setStickerDevice] = useState<Device | null>(null);
   const [connectionCamera, setConnectionCamera] = useState<CameraType | null>(null);
+  const [formDeviceType, setFormDeviceType] = useState<DeviceType>('camera');
 
   const { toast } = useToast();
   const stickerRef = useRef<HTMLDivElement>(null);
@@ -208,59 +153,7 @@ export default function Home() {
 
   const poeSwitchMap = useMemo(() => poeSwitches.reduce((acc, sw) => ({ ...acc, [sw.id]: sw }), {} as Record<string, POESwitch>), [poeSwitches]);
   const nvrMap = useMemo(() => nvrs.reduce((acc, nvr) => ({ ...acc, [nvr.id]: nvr }), {} as Record<string, NVR>), [nvrs]);
-
-  const form = useForm<DeviceFormValues>({
-    resolver: zodResolver(deviceFormSchema),
-    defaultValues: {
-      deviceType: 'camera',
-      name: '',
-      location: '',
-    }
-  });
   
-  const deviceType = form.watch('deviceType');
-
-  useEffect(() => {
-    if (editingDevice) {
-      const defaultValues: Partial<DeviceFormValues> = {
-        ...editingDevice,
-      };
-      // Ensure optional numeric fields are not undefined for controlled components
-      if (editingDevice.type === 'nvr') {
-        // @ts-ignore
-        defaultValues.switchPortNumber = editingDevice.switchPortNumber ?? '';
-      }
-      if (editingDevice.type === 'poe') {
-        // @ts-ignore
-        defaultValues.uplinkPortCount = editingDevice.uplinkPortCount ?? '';
-      }
-      form.reset(defaultValues as any);
-    } else {
-       const defaultValues: Partial<DeviceFormValues> = {
-        name: '',
-        location: '',
-      };
-      // Reset with specific fields for the selected type to avoid lingering values
-      switch (deviceType) {
-        case 'camera':
-          form.reset({ ...defaultValues, deviceType, ipAddress: '', installationDate: new Date(), screenChannelNumber: 1, zone: '', poeSwitchId: '', poePortNumber: 1, cameraType: 'dome', quality: 4, nvrId: '', nvrChannelNumber: 1 });
-          break;
-        case 'nvr':
-           form.reset({ ...defaultValues, deviceType, ipAddress: '', storageCapacity: '', channels: 16, switchId: '', switchPortNumber: '' as any });
-          break;
-        case 'poe':
-           form.reset({ ...defaultValues, deviceType, portCount: 8, uplinkPortCount: '' as any });
-          break;
-        case 'tv':
-            form.reset({ ...defaultValues, deviceType, size: 55, nvrId: '' });
-            break;
-        default:
-             form.reset({deviceType: 'camera', name: '', location: ''});
-      }
-    }
-  }, [editingDevice, form, deviceType]);
-  
-
   const updateDeviceById = useCallback((id: string, updates: Partial<Device>) => {
     const updater = (prev: any[]) => prev.map(d => d.id === id ? { ...d, ...updates } : d);
     setCameras(updater);
@@ -367,9 +260,18 @@ export default function Home() {
   const handleEdit = (device: Device) => {
     // Find the original device to edit from the state, not the derived one
     const originalDevice = allDevices.find(d => d.id === device.id);
-    setEditingDevice(originalDevice || device);
+    if(originalDevice) {
+      setFormDeviceType(originalDevice.type);
+      setEditingDevice(originalDevice);
+    }
     setIsFormOpen(true);
   };
+
+  const handleAddNew = () => {
+    setEditingDevice(null);
+    setFormDeviceType('camera');
+    setIsFormOpen(true);
+  }
 
   const handleDelete = (id: string, type: DeviceType) => {
     switch(type) {
@@ -524,7 +426,7 @@ export default function Home() {
               <Button onClick={handlePrintAllStickers} variant="outline">
                 <Printer /> Print All Stickers
               </Button>
-              <Button onClick={() => { setEditingDevice(null); form.reset({deviceType: 'camera', name: '', location: ''}); setIsFormOpen(true); }}>
+              <Button onClick={handleAddNew}>
                 <Plus /> Add Device
               </Button>
             </div>
@@ -597,404 +499,15 @@ export default function Home() {
 
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
         <DialogContent className="sm:max-w-xl">
-          <DialogHeader>
-            <DialogTitle>{editingDevice ? 'Edit Device' : 'Add New Device'}</DialogTitle>
-            <DialogDescription>
-              {editingDevice
-                ? 'Update the details for this device.'
-                : 'Select a device type and enter its details.'}
-            </DialogDescription>
-          </DialogHeader>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-4">
-               <FormField
-                control={form.control}
-                name="deviceType"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Device Type</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!!editingDevice}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a device type" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="camera">Camera</SelectItem>
-                        <SelectItem value="nvr">NVR</SelectItem>
-                        <SelectItem value="poe">PoE Switch</SelectItem>
-                        <SelectItem value="tv">TV Screen</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Device Name</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g., Lobby Entrance Cam" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              { (deviceType === 'camera' || deviceType === 'nvr') && 'ipAddress' in form.getValues() && (
-                <FormField
-                    control={form.control}
-                    name="ipAddress"
-                    render={({ field }) => (
-                    <FormItem>
-                        <FormLabel>IP Address</FormLabel>
-                        <FormControl>
-                        <Input placeholder="e.g., 192.168.1.100" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                    </FormItem>
-                    )}
-                />
-              )}
-
-              <FormField
-                control={form.control}
-                name="location"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Location</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g., Main Building, 1st Floor" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              {deviceType === 'camera' && (
-                <>
-                 <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                        control={form.control}
-                        name="cameraType"
-                        render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Camera Type</FormLabel>
-                             <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select a type" />
-                                    </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                    <SelectItem value="bullet">Bullet</SelectItem>
-                                    <SelectItem value="dome">Dome</SelectItem>
-                                    <SelectItem value="ptz">PTZ</SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <FormMessage />
-                        </FormItem>
-                        )}
-                    />
-                     <FormField
-                        control={form.control}
-                        name="quality"
-                        render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Quality (MP)</FormLabel>
-                            <FormControl>
-                                <Input type="number" placeholder="e.g., 4" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                        </FormItem>
-                        )}
-                    />
-                 </div>
-                 <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                        control={form.control}
-                        name="zone"
-                        render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Zone</FormLabel>
-                            <FormControl>
-                                <Input placeholder="e.g., Section A" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                        </FormItem>
-                        )}
-                    />
-                    <FormField
-                        control={form.control}
-                        name="screenChannelNumber"
-                        render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Screen Channel</FormLabel>
-                            <FormControl>
-                                <Input type="number" placeholder="e.g., 1" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                        </FormItem>
-                        )}
-                    />
-                 </div>
-                 <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                        control={form.control}
-                        name="poeSwitchId"
-                        render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>PoE Switch</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                    <SelectTrigger>
-                                    <SelectValue placeholder="Select a switch" />
-                                    </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                    {poeSwitches.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
-                            <FormMessage />
-                        </FormItem>
-                        )}
-                    />
-                     <FormField
-                        control={form.control}
-                        name="poePortNumber"
-                        render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>PoE Port</FormLabel>
-                            <FormControl>
-                                <Input type="number" placeholder="e.g., 5" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                        </FormItem>
-                        )}
-                    />
-                 </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                        control={form.control}
-                        name="nvrId"
-                        render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>NVR</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                    <SelectTrigger>
-                                    <SelectValue placeholder="Select an NVR" />
-                                    </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                    {nvrs.map(n => <SelectItem key={n.id} value={n.id}>{n.name}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
-                            <FormMessage />
-                        </FormItem>
-                        )}
-                    />
-                     <FormField
-                        control={form.control}
-                        name="nvrChannelNumber"
-                        render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>NVR Channel</FormLabel>
-                            <FormControl>
-                                <Input type="number" placeholder="e.g., 3" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                        </FormItem>
-                        )}
-                    />
-                 </div>
-                 <FormField
-                    control={form.control}
-                    name="installationDate"
-                    render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                        <FormLabel>Installation Date</FormLabel>
-                        <Popover>
-                        <PopoverTrigger asChild>
-                            <FormControl>
-                            <Button
-                                variant="outline"
-                                className={cn(
-                                'w-[240px] pl-3 text-left font-normal',
-                                !field.value && 'text-muted-foreground'
-                                )}
-                            >
-                                {field.value ? format(field.value, 'PPP') : <span>Pick a date</span>}
-                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                            </Button>
-                            </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                            mode="single"
-                            selected={field.value}
-                            onSelect={field.onChange}
-                            disabled={(date) => date > new Date() || date < new Date('1990-01-01')}
-                            initialFocus
-                            />
-                        </PopoverContent>
-                        </Popover>
-                        <FormMessage />
-                    </FormItem>
-                    )}
-                />
-                </>
-              )}
-              
-               {deviceType === 'nvr' && (
-                <>
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="storageCapacity"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Storage Capacity</FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g., 16TB" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="channels"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Channels</FormLabel>
-                          <FormControl>
-                            <Input type="number" placeholder="e.g., 16" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                        control={form.control}
-                        name="switchId"
-                        render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Switch</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value || ''}>
-                                <FormControl>
-                                    <SelectTrigger>
-                                    <SelectValue placeholder="Select a switch" />
-                                    </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                    <SelectItem value="">None</SelectItem>
-                                    {poeSwitches.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
-                            <FormMessage />
-                        </FormItem>
-                        )}
-                    />
-                     <FormField
-                        control={form.control}
-                        name="switchPortNumber"
-                        render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Switch Port</FormLabel>
-                            <FormControl>
-                                <Input type="number" placeholder="e.g., 8" {...field} value={field.value ?? ''} />
-                            </FormControl>
-                            <FormMessage />
-                        </FormItem>
-                        )}
-                    />
-                 </div>
-                </>
-              )}
-              
-              {deviceType === 'poe' && (
-                 <>
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                        control={form.control}
-                        name="portCount"
-                        render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>PoE Port Count</FormLabel>
-                            <FormControl>
-                            <Input type="number" placeholder="e.g., 8" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                        </FormItem>
-                        )}
-                    />
-                    <FormField
-                        control={form.control}
-                        name="uplinkPortCount"
-                        render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Uplink Port Count</FormLabel>
-                            <FormControl>
-                            <Input type="number" placeholder="e.g., 2" {...field} value={field.value ?? ''} />
-                            </FormControl>
-                            <FormMessage />
-                        </FormItem>
-                        )}
-                    />
-                  </div>
-                </>
-              )}
-
-              {deviceType === 'tv' && (
-                <>
-                  <FormField
-                      control={form.control}
-                      name="size"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Screen Size (inches)</FormLabel>
-                          <FormControl>
-                            <Input type="number" placeholder="e.g., 55" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                  />
-                  <FormField
-                      control={form.control}
-                      name="nvrId"
-                      render={({ field }) => (
-                      <FormItem>
-                          <FormLabel>Associated NVR</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
-                              <FormControl>
-                                  <SelectTrigger>
-                                  <SelectValue placeholder="Select an NVR" />
-                                  </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                  {nvrs.map(n => <SelectItem key={n.id} value={n.id}>{n.name}</SelectItem>)}
-                              </SelectContent>
-                          </Select>
-                          <FormMessage />
-                      </FormItem>
-                      )}
-                  />
-                </>
-              )}
-              
-              <DialogFooter>
-                <Button type="button" variant="ghost" onClick={() => setIsFormOpen(false)}>Cancel</Button>
-                <Button type="submit">Save Device</Button>
-              </DialogFooter>
-            </form>
-          </Form>
+          <DeviceForm 
+            deviceType={formDeviceType}
+            onDeviceTypeChange={setFormDeviceType}
+            editingDevice={editingDevice}
+            onSubmit={handleFormSubmit}
+            onCancel={() => setIsFormOpen(false)}
+            nvrs={nvrs}
+            poeSwitches={poeSwitches}
+          />
         </DialogContent>
       </Dialog>
       
@@ -1526,6 +1039,7 @@ function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrint
     
 
     
+
 
 
 
