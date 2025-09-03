@@ -379,7 +379,7 @@ export default function Home() {
     const printWindow = window.open('', '', 'height=400,width=600');
     if (printWindow && stickerRef.current) {
         printWindow.document.write('<html><head><title>Print Sticker</title>');
-        printWindow.document.write('<style>@media print { body { -webkit-print-color-adjust: exact; color-adjust: exact; } @page { size: 3.5in 2in; margin: 0; } } body { margin: 0; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100%; } .sticker { width: 336px; height: 192px; box-sizing: border-box; border: 1px solid #000; padding: 0; display: flex; flex-direction: column; background: white; color: black; font-size: 14px; } .header { text-align: center; padding: 4px; border-bottom: 1px solid #000; } .title { font-weight: bold; font-size: 1.5rem; } .location { font-size: 0.9rem; } .details-table { width: 100%; border-collapse: collapse; } .details-table td { border: 1px solid #000; padding: 4px 8px; font-size: 0.9rem; } .details-table td:first-child { border-left: 0; } .details-table td:last-child { border-right: 0; } .details-table tr:last-child td { border-bottom: 0; } .detail-key { font-weight: bold; } </style>');
+        printWindow.document.write('<style>@media print { body { -webkit-print-color-adjust: exact; color-adjust: exact; } @page { size: 3.5in 2in; margin: 0; } } body { margin: 0; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100%; } .sticker { width: 336px; height: 192px; box-sizing: border-box; border: 1px solid #000; padding: 0; display: flex; flex-direction: column; background: white; color: black; } .header { text-align: center; padding: 4px; border-bottom: 1px solid #000; } .title { font-weight: bold; font-size: 1.5rem; } .location { font-size: 0.9rem; } .details-table { width: 100%; border-collapse: collapse; } .details-table td { border: 1px solid #000; padding: 4px 8px; font-size: 0.9rem; } .details-table td:first-child { border-left: 0; } .details-table td:last-child { border-right: 0; } .details-table tr:last-child td { border-bottom: 0; } .detail-key { font-weight: bold; } </style>');
         printWindow.document.write('</head><body style="margin: 0; font-family: sans-serif;">');
         printWindow.document.write(stickerRef.current.innerHTML);
         printWindow.document.write('</body></html>');
@@ -396,7 +396,7 @@ export default function Home() {
     const printWindow = window.open('', '', 'height=800,width=800');
     if (printWindow) {
       printWindow.document.write('<html><head><title>All Device Stickers</title>');
-      printWindow.document.write('<style>@media print { body { -webkit-print-color-adjust: exact; color-adjust: exact; } } body { font-family: sans-serif; } .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(336px, 1fr)); gap: 0.5rem; } .sticker { width: 336px; height: 192px; box-sizing: border-box; border: 1px solid #000; padding: 0; display: flex; flex-direction: column; page-break-inside: avoid; background: white; color: black; font-size: 14px; } .header { text-align: center; padding: 4px; border-bottom: 1px solid #000; } .title { font-weight: bold; font-size: 1.5rem; } .location { font-size: 0.9rem; } .details-table { width: 100%; border-collapse: collapse; } .details-table td { border: 1px solid #000; padding: 4px 8px; font-size: 0.9rem; } .details-table td:first-child { border-left: 0; } .details-table td:last-child { border-right: 0; } .details-table tr:last-child td { border-bottom: 0; } .detail-key { font-weight: bold; } </style>');
+      printWindow.document.write('<style>@media print { body { -webkit-print-color-adjust: exact; color-adjust: exact; } } body { font-family: sans-serif; } .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(336px, 1fr)); gap: 0.5rem; } .sticker { width: 336px; height: 192px; box-sizing: border-box; border: 1px solid #000; padding: 0; display: flex; flex-direction: column; page-break-inside: avoid; background: white; color: black; } .header { text-align: center; padding: 4px; border-bottom: 1px solid #000; } .title { font-weight: bold; font-size: 1.5rem; } .location { font-size: 0.9rem; } .details-table { width: 100%; border-collapse: collapse; } .details-table td { border: 1px solid #000; padding: 4px 8px; font-size: 0.9rem; } .details-table td:first-child { border-left: 0; } .details-table td:last-child { border-right: 0; } .details-table tr:last-child td { border-bottom: 0; } .detail-key { font-weight: bold; } </style>');
       printWindow.document.write('</head><body>');
       printWindow.document.write('<h1>All Device Stickers</h1><div class="grid">');
 
@@ -444,21 +444,29 @@ export default function Home() {
     const map = mapContainerRef.current;
     if (!map || !deviceId) return;
 
-    // Check if dropping on an existing pin
+    // Find the target pin, if any
     let target = e.target as HTMLElement;
-    // Traverse up to find a potential pin container
-    while(target && !target.dataset.locationName && target !== map) {
+    let targetPin = null;
+
+    // Traverse up the DOM tree from the event target
+    while (target && target !== map) {
+        if (target.hasAttribute('data-pin-location')) {
+            targetPin = target;
+            break;
+        }
         target = target.parentElement as HTMLElement;
     }
 
-    if (target && target.dataset.locationName) {
-        const existingLocationName = target.dataset.locationName;
-        updateDeviceById(deviceId, { location: existingLocationName });
-        toast({ title: "Location Updated", description: `Device moved to ${existingLocationName}`});
-        return;
+    if (targetPin) {
+        const existingLocationName = targetPin.getAttribute('data-pin-location');
+        if (existingLocationName) {
+            updateDeviceById(deviceId, { location: existingLocationName });
+            toast({ title: "Location Updated", description: `Device moved to ${existingLocationName}`});
+            return;
+        }
     }
 
-
+    // If not dropped on a pin, handle as a new location drop
     const mapRect = map.getBoundingClientRect();
     const x = e.clientX - mapRect.left;
     const y = e.clientY - mapRect.top;
@@ -691,9 +699,9 @@ export default function Home() {
                                                     <div 
                                                         draggable
                                                         onDragStart={(e) => handleDragStart(e, device.id)}
-                                                        className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing" 
+                                                        className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing p-2" 
                                                         style={{ top: coords.top, left: coords.left }}
-                                                        data-location-name={device.location}
+                                                        data-pin-location={device.location}
                                                     >
                                                         <div className="relative flex items-center justify-center">
                                                             <div className={cn("w-4 h-4 rounded-full", getPinColor(device.status))}></div>
