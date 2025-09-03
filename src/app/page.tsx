@@ -121,6 +121,8 @@ const deviceFormSchema = z.discriminatedUnion('deviceType', [
     ipAddress: z.string().ip({ version: 'v4', message: 'Invalid IPv4 address.' }),
     storageCapacity: z.string().min(1, { message: 'Storage capacity is required.' }),
     channels: z.coerce.number().int().min(1, { message: 'Channels must be at least 1.' }),
+    switchId: z.string().optional(),
+    switchPortNumber: z.coerce.number().int().min(1).optional(),
   }),
   baseDeviceSchema.extend({
     deviceType: z.literal('poe'),
@@ -147,7 +149,7 @@ const initialCameras: CameraType[] = [
 ];
 
 const initialNVRs: NVR[] = [
-  { id: 'nvr1', type: 'nvr', name: 'Main NVR', ipAddress: '192.168.1.50', location: 'Server Room', status: 'active', storageCapacity: '16TB', channels: 16 },
+  { id: 'nvr1', type: 'nvr', name: 'Main NVR', ipAddress: '192.168.1.50', location: 'Server Room', status: 'active', storageCapacity: '16TB', channels: 16, switchId: 'poe1', switchPortNumber: 8 },
   { id: 'nvr2', type: 'nvr', name: 'Backup NVR', ipAddress: '192.168.1.51', location: 'Server Room', status: 'inactive', storageCapacity: '8TB', channels: 8 },
 ];
 
@@ -235,7 +237,7 @@ export default function Home() {
           form.reset({ ...defaultValues, deviceType, ipAddress: '', installationDate: new Date(), screenChannelNumber: 1, zone: '', poeSwitchId: '', poePortNumber: 1, cameraType: 'dome', quality: 4, nvrId: '', nvrChannelNumber: 1 });
           break;
         case 'nvr':
-           form.reset({ ...defaultValues, deviceType, ipAddress: '', storageCapacity: '', channels: 16 });
+           form.reset({ ...defaultValues, deviceType, ipAddress: '', storageCapacity: '', channels: 16, switchId: '', switchPortNumber: undefined });
           break;
         case 'poe':
            form.reset({ ...defaultValues, deviceType, portCount: 8, powerBudget: '', uplink1Port: '', uplink2Port: '' });
@@ -303,14 +305,21 @@ export default function Home() {
 
 
   const handleFormSubmit = (values: DeviceFormValues) => {
+    const finalValues: any = { ...values };
+
+    if (finalValues.deviceType === 'nvr') {
+        if (finalValues.switchId === '') delete finalValues.switchId;
+        if (finalValues.switchPortNumber === '' || isNaN(finalValues.switchPortNumber)) delete finalValues.switchPortNumber;
+    }
+    
     if (editingDevice) {
-      updateDeviceById(editingDevice.id, values);
-      toast({ title: 'Device Updated', description: `Successfully updated ${values.name}.` });
+      updateDeviceById(editingDevice.id, finalValues);
+      toast({ title: 'Device Updated', description: `Successfully updated ${finalValues.name}.` });
     } else {
       const newDevice = {
         id: crypto.randomUUID(),
         status: 'active' as DeviceStatus,
-        ...values
+        ...finalValues
       };
 
       switch(newDevice.deviceType) {
@@ -327,7 +336,7 @@ export default function Home() {
           setTvScreens(prev => [...prev, newDevice as TVScreen]);
           break;
       }
-      toast({ title: 'Device Added', description: `Successfully added ${values.name}.` });
+      toast({ title: 'Device Added', description: `Successfully added ${finalValues.name}.` });
     }
     setIsFormOpen(false);
     setEditingDevice(null);
@@ -413,6 +422,7 @@ export default function Home() {
                 break;
             case 'nvr':
                 details = { ...details, Storage: d.storageCapacity, Channels: d.channels };
+                if (d.switchId && d.switchPortNumber) details['Switch'] = `${poeSwitchName(d.switchId)}:${d.switchPortNumber}`;
                 break;
             case 'poe':
                  details = { ...details, Ports: d.portCount, Budget: d.powerBudget };
@@ -538,7 +548,7 @@ export default function Home() {
                     <DeviceTable<CameraType> data={filteredCameras} poeSwitches={poeSwitches} nvrs={nvrs} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'camera')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} onPrintSticker={setStickerDevice} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} onShowConnection={setConnectionCamera} type="camera" />
                 </TabsContent>
                 <TabsContent value="nvrs">
-                    <DeviceTable<NVR> data={filteredNvrs} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'nvr')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} onPrintSticker={setStickerDevice} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="nvr" />
+                    <DeviceTable<NVR> data={filteredNvrs} poeSwitches={poeSwitches} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'nvr')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} onPrintSticker={setStickerDevice} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="nvr" />
                 </TabsContent>
                 <TabsContent value="poe">
                     <DeviceTable<POESwitch & { derivedStatus?: DeviceStatus }> data={filteredPoeSwitches} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'poe')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} onPrintSticker={setStickerDevice} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="poe" />
@@ -557,6 +567,7 @@ export default function Home() {
                         pinging={pinging}
                         getStatusBadgeVariant={getStatusBadgeVariant}
                         getDeviceIcon={getDeviceIcon}
+                        poeSwitchMap={poeSwitchMap}
                     />
                 </TabsContent>
               </>
@@ -820,32 +831,70 @@ export default function Home() {
               
                {deviceType === 'nvr' && (
                 <>
-                  <FormField
-                    control={form.control}
-                    name="storageCapacity"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Storage Capacity</FormLabel>
-                        <FormControl>
-                          <Input placeholder="e.g., 16TB" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="channels"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Channels</FormLabel>
-                        <FormControl>
-                          <Input type="number" placeholder="e.g., 16" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="storageCapacity"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Storage Capacity</FormLabel>
+                          <FormControl>
+                            <Input placeholder="e.g., 16TB" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="channels"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Channels</FormLabel>
+                          <FormControl>
+                            <Input type="number" placeholder="e.g., 16" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                        control={form.control}
+                        name="switchId"
+                        render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Switch</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value || ''}>
+                                <FormControl>
+                                    <SelectTrigger>
+                                    <SelectValue placeholder="Select a switch" />
+                                    </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    <SelectItem value="">None</SelectItem>
+                                    {poeSwitches.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
+                     <FormField
+                        control={form.control}
+                        name="switchPortNumber"
+                        render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Switch Port</FormLabel>
+                            <FormControl>
+                                <Input type="number" placeholder="e.g., 8" {...field} value={field.value ?? ''} />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
+                 </div>
                 </>
               )}
               
@@ -1059,6 +1108,7 @@ function DeviceTable<T extends Device & { derivedStatus?: DeviceStatus }>({ data
                     {type === 'camera' && <TableHead>NVR Channel</TableHead>}
                     {type === 'nvr' && <TableHead>Storage</TableHead>}
                     {type === 'nvr' && <TableHead>Channels</TableHead>}
+                    {type === 'nvr' && <TableHead>Switch Port</TableHead>}
                     {type === 'poe' && <TableHead>Ports</TableHead>}
                     {type === 'poe' && <TableHead>Power Budget</TableHead>}
                     {type === 'poe' && <TableHead>Uplink 1</TableHead>}
@@ -1095,6 +1145,7 @@ function DeviceTable<T extends Device & { derivedStatus?: DeviceStatus }>({ data
 
                         {item.type === 'nvr' && <TableCell>{(item as NVR).storageCapacity}</TableCell>}
                         {item.type === 'nvr' && <TableCell>{(item as NVR).channels}</TableCell>}
+                        {item.type === 'nvr' && <TableCell>{(item as NVR).switchId ? `${poeSwitchMap[(item as NVR).switchId!]}:${(item as NVR).switchPortNumber}` : 'N/A'}</TableCell>}
 
                         {item.type === 'poe' && <TableCell>{(item as POESwitch).portCount}</TableCell>}
                         {item.type === 'poe' && <TableCell>{(item as POESwitch).powerBudget}</TableCell>}
@@ -1209,9 +1260,10 @@ interface DeviceTreeProps {
     pinging: Record<string, boolean>;
     getStatusBadgeVariant: (status: DeviceStatus) => string;
     getDeviceIcon: (type: DeviceType) => React.ReactNode;
+    poeSwitchMap: Record<string, POESwitch>;
 }
 
-function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrintSticker, pinging, getStatusBadgeVariant, getDeviceIcon }: DeviceTreeProps) {
+function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrintSticker, pinging, getStatusBadgeVariant, getDeviceIcon, poeSwitchMap }: DeviceTreeProps) {
     const [treeView, setTreeView] = useState<TreeViewRoot>('nvr');
 
     const tree = useMemo(() => {
@@ -1235,7 +1287,7 @@ function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrint
         }
 
         // NVR-based tree
-        const nvrs = devices.filter(d => d.type === 'nvr') as NVR[];
+        let nvrs = devices.filter(d => d.type === 'nvr') as NVR[];
         const poeSwitches = devices.filter(d => d.type === 'poe') as (POESwitch & { derivedStatus?: DeviceStatus })[];
         const cameras = devices.filter(d => d.type === 'camera') as CameraType[];
         const tvs = devices.filter(d => d.type === 'tv') as TVScreen[];
@@ -1244,17 +1296,24 @@ function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrint
             const nvrCameras = cameras.filter(c => c.nvrId === nvr.id);
             const nvrTvs = tvs.filter(t => t.nvrId === nvr.id);
             const poeSwitchIds = new Set(nvrCameras.map(c => c.poeSwitchId));
+            if (nvr.switchId) {
+                poeSwitchIds.add(nvr.switchId);
+            }
 
             const poeTree = Array.from(poeSwitchIds).map(poeId => {
                 const poeSwitch = poeSwitches.find(p => p.id === poeId);
                 if (!poeSwitch) return null;
+                const connectedItems = nvrCameras
+                    .filter(c => c.poeSwitchId === poeId)
+                    .concat(nvrs.filter(n => n.id !== nvr.id && n.switchId === poeId) as any);
+                
                 return {
                     ...poeSwitch,
-                    children: nvrCameras.filter(c => c.poeSwitchId === poeId).sort((a, b) => a.name.localeCompare(b.name))
+                    children: connectedItems.sort((a, b) => a.name.localeCompare(b.name))
                 };
-            }).filter(Boolean) as (POESwitch & { children: CameraType[] })[];
+            }).filter(Boolean) as (POESwitch & { children: (CameraType | NVR)[] })[];
 
-            const camerasOnPoE = new Set(poeTree.flatMap(p => p.children).map(c => c.id));
+            const camerasOnPoE = new Set(poeTree.flatMap(p => p.children.filter(c => c.type === 'camera')).map(c => c.id));
             const otherNvrChildren = [
                 ...nvrCameras.filter(c => !camerasOnPoE.has(c.id)),
                 ...nvrTvs
@@ -1267,10 +1326,22 @@ function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrint
             };
         });
 
-        const assignedDeviceIds = new Set(devices.filter(d => (d.type === 'camera' || d.type === 'tv') && 'nvrId' in d && d.nvrId).map(d => d.id));
+        const assignedDeviceIds = new Set(
+            devices.filter(d =>
+                ((d.type === 'camera' || d.type === 'tv') && 'nvrId' in d && d.nvrId) ||
+                (d.type === 'nvr' && 'switchId' in d && d.switchId)
+            ).map(d => d.id)
+        );
         
-        const unassigned = devices.filter(d => !assignedDeviceIds.has(d.id) && d.type !== 'nvr' )
-            .sort((a, b) => a.name.localeCompare(b.name));
+        const unassignedPoeSwitchIds = new Set(
+            nvrTree.flatMap(n => n.poeTree).map(p => p.id)
+        );
+
+        const unassigned = devices.filter(d => 
+            !assignedDeviceIds.has(d.id) &&
+            (d.type !== 'poe' || !unassignedPoeSwitchIds.has(d.id)) &&
+            d.type !== 'nvr'
+        ).sort((a, b) => a.name.localeCompare(b.name));
         
         return { nvrTree, unassigned };
 
@@ -1278,6 +1349,8 @@ function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrint
 
     const renderDeviceItem = (item: Device) => {
         const itemStatus = 'derivedStatus' in item ? item.derivedStatus || item.status : item.status;
+        const poeSwitch = (item.type === 'nvr' && item.switchId) ? poeSwitchMap[item.switchId] : null;
+
         return (
             <div key={item.id} className="flex items-center justify-between p-2 ml-8 bg-card rounded-md border">
                 <div className="flex items-center">
@@ -1286,6 +1359,11 @@ function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrint
                     <Badge variant="outline" className={cn('capitalize text-xs', getStatusBadgeVariant(itemStatus))}>
                         {itemStatus}
                     </Badge>
+                     {poeSwitch && item.type === 'nvr' && (
+                        <p className="text-sm text-muted-foreground ml-4">
+                            Connected to: {poeSwitch.name}:{item.switchPortNumber}
+                        </p>
+                    )}
                 </div>
                  <div className="flex items-center justify-end gap-2">
                     { item.type !== 'tv' && (
@@ -1456,4 +1534,6 @@ function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrint
     
 
     
+
+
 

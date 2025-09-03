@@ -28,6 +28,8 @@ export type NVR = {
   storageCapacity: string; // e.g., '8TB'
   channels: number;
   type: 'nvr';
+  switchId?: string;
+  switchPortNumber?: number;
 };
 
 export type POESwitch = {
@@ -58,4 +60,5 @@ export type TVScreen = {
 export type Device = Camera | NVR | POESwitch | TVScreen;
 
     
+
 
