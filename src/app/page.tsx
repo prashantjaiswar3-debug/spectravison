@@ -1071,25 +1071,28 @@ function DeviceTable<T extends Device & { derivedStatus?: DeviceStatus }>({ data
                         
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
-                             <Switch
-                                checked={item.status === 'active'}
-                                onCheckedChange={(checked) => onStatusChange(item, checked)}
-                                aria-label={`Toggle status for ${item.name}`}
-                                disabled={item.type === 'poe'}
-                              />
-                            <TooltipProvider>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Button variant="ghost" size="icon" onClick={() => onPing(item)} disabled={pinging[item.id] || !('ipAddress' in item && item.ipAddress)}>
-                                            {pinging[item.id] ? <Loader2 className="animate-spin" /> : itemStatus === 'error' ? <WifiOff/> : <Wifi/>}
-                                        </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                        {'ipAddress' in item && item.ipAddress ? <p>Ping {item.name}</p> : <p>No IP to ping</p>}
-                                    </TooltipContent>
-                                </Tooltip>
-                            </TooltipProvider>
-
+                             { item.type !== 'tv' && (
+                              <Switch
+                                  checked={item.status === 'active'}
+                                  onCheckedChange={(checked) => onStatusChange(item, checked)}
+                                  aria-label={`Toggle status for ${item.name}`}
+                                  disabled={item.type === 'poe'}
+                                />
+                             )}
+                            { item.type !== 'tv' && (
+                              <TooltipProvider>
+                                  <Tooltip>
+                                      <TooltipTrigger asChild>
+                                          <Button variant="ghost" size="icon" onClick={() => onPing(item)} disabled={pinging[item.id] || !('ipAddress' in item && item.ipAddress)}>
+                                              {pinging[item.id] ? <Loader2 className="animate-spin" /> : itemStatus === 'error' ? <WifiOff/> : <Wifi/>}
+                                          </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                          {'ipAddress' in item && item.ipAddress ? <p>Ping {item.name}</p> : <p>No IP to ping</p>}
+                                      </TooltipContent>
+                                  </Tooltip>
+                              </TooltipProvider>
+                            )}
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="icon">
@@ -1249,25 +1252,28 @@ function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrint
                     </Badge>
                 </div>
                  <div className="flex items-center justify-end gap-2">
-                    <Switch
-                        checked={item.status === 'active'}
-                        onCheckedChange={(checked) => onStatusChange(item, checked)}
-                        aria-label={`Toggle status for ${item.name}`}
-                        disabled={item.type === 'poe'}
-                        />
-                    <TooltipProvider>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Button variant="ghost" size="icon" onClick={() => onPing(item)} disabled={pinging[item.id] || !('ipAddress' in item && item.ipAddress)}>
-                                    {pinging[item.id] ? <Loader2 className="animate-spin" /> : itemStatus === 'error' ? <WifiOff/> : <Wifi/>}
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                                {'ipAddress' in item && item.ipAddress ? <p>Ping {item.name}</p> : <p>No IP to ping</p>}
-                            </TooltipContent>
-                        </Tooltip>
-                    </TooltipProvider>
-
+                    { item.type !== 'tv' && (
+                        <Switch
+                            checked={item.status === 'active'}
+                            onCheckedChange={(checked) => onStatusChange(item, checked)}
+                            aria-label={`Toggle status for ${item.name}`}
+                            disabled={item.type === 'poe'}
+                            />
+                    )}
+                    { item.type !== 'tv' && (
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button variant="ghost" size="icon" onClick={() => onPing(item)} disabled={pinging[item.id] || !('ipAddress' in item && item.ipAddress)}>
+                                        {pinging[item.id] ? <Loader2 className="animate-spin" /> : itemStatus === 'error' ? <WifiOff/> : <Wifi/>}
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    {'ipAddress' in item && item.ipAddress ? <p>Ping {item.name}</p> : <p>No IP to ping</p>}
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    )}
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon">
