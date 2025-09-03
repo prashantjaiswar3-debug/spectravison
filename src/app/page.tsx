@@ -17,17 +17,11 @@ import {
   Calendar as CalendarIcon,
   Server,
   Network as SwitchIcon,
-  Map,
-  List,
   Wifi,
   WifiOff,
   Tv2,
   Printer,
   QrCode,
-  Upload,
-  ZoomIn,
-  ZoomOut,
-  GripVertical,
 } from 'lucide-react';
 
 import type { Camera as CameraType, NVR, POESwitch, Device, DeviceStatus, TVScreen, DeviceType } from '@/types';
@@ -93,10 +87,8 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Slider } from '@/components/ui/slider';
 
 
 const baseDeviceSchema = z.object({
@@ -163,18 +155,6 @@ const initialTVScreens: TVScreen[] = [
     { id: 'tv2', type: 'tv', name: 'Break Room TV', ipAddress: '192.168.2.201', location: 'Break Room', status: 'inactive', size: 65, nvrId: 'nvr2' },
 ];
 
-const initialLocationCoordinates: Record<string, { top: string; left: string }> = {
-  "Main Lobby": { top: "30%", left: "25%" },
-  "Exterior Parking": { top: "75%", left: "15%" },
-  "Second Floor, Office 204": { top: "35%", left: "60%" },
-  "Rooftop": { top: "10%", left: "75%" },
-  "Server Room": { top: "50%", left: "50%" },
-  "1st Floor IT Closet": { top: "60%", left: "40%" },
-  "2nd Floor IT Closet": { top: "40%", left: "70%" },
-  "Break Room": { top: "55%", left: "80%" },
-  "Warehouse": { top: "85%", left: "50%" },
-};
-
 
 export default function Home() {
   const [cameras, setCameras] = useState<CameraType[]>(initialCameras);
@@ -186,18 +166,11 @@ export default function Home() {
   const [statusFilter, setStatusFilter] = useState<'all' | DeviceStatus>('all');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingDevice, setEditingDevice] = useState<Device | null>(null);
-  const [isReportDialogOpen, setReportDialogOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [pinging, setPinging] = useState<Record<string, boolean>>({});
   const [stickerDevice, setStickerDevice] = useState<Device | null>(null);
-  const [mapImageUrl, setMapImageUrl] = useState<string>('');
-  const [zoomLevel, setZoomLevel] = useState(1);
-  const mapContainerRef = useRef<HTMLDivElement>(null);
-  const [locationCoordinates, setLocationCoordinates] = useState(initialLocationCoordinates);
 
   const { toast } = useToast();
   const stickerRef = useRef<HTMLDivElement>(null);
-  const mapUploadInputRef = useRef<HTMLInputElement>(null);
 
   const derivedPoeSwitches = useMemo(() => {
     return poeSwitches.map(sw => {
@@ -417,68 +390,7 @@ export default function Home() {
       }, 500);
     }
   };
-
-  const handleMapImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setMapImageUrl(e.target?.result as string);
-        toast({ title: 'Map updated successfully!' });
-      };
-      reader.readAsDataURL(file);
-    }
-  };
   
-  const handleDragStart = (e: React.DragEvent, deviceId: string) => {
-    e.dataTransfer.setData("deviceId", deviceId);
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    const deviceId = e.dataTransfer.getData("deviceId");
-    const map = mapContainerRef.current;
-    if (!map || !deviceId) return;
-
-    const device = allDevices.find(d => d.id === deviceId);
-    if (!device) return;
-  
-    const mapRect = map.getBoundingClientRect();
-    // Adjust for the current scale
-    const x = (e.clientX - mapRect.left) / zoomLevel;
-    const y = (e.clientY - mapRect.top) / zoomLevel;
-    
-    // Ensure coordinates are within the map boundaries, relative to the unscaled map dimensions
-    const newLeft = `${(x / map.clientWidth) * 100}%`;
-    const newTop = `${(y / map.clientHeight) * 100}%`;
-
-    // If the device already has a location on the map, we're just moving it
-    if (device.location && locationCoordinates[device.location]) {
-      setLocationCoordinates(prev => ({
-        ...prev,
-        [device.location]: { top: newTop, left: newLeft }
-      }));
-      toast({ title: "Location Adjusted", description: `${device.name}'s pin moved.` });
-    } else {
-      // If it's an unplaced device, prompt for a new location name
-      const newLocationName = prompt("Enter a name for this new location:", device.location || '');
-      if (newLocationName && newLocationName.trim() !== '') {
-        setLocationCoordinates(prev => ({
-          ...prev,
-          [newLocationName]: { top: newTop, left: newLeft }
-        }));
-        // Update the device's location property
-        updateDeviceById(deviceId, { location: newLocationName });
-        toast({ title: "Location Set", description: `${device.name} placed at ${newLocationName}`});
-      }
-    }
-  };
-  
-
   const renderDeviceSticker = (device: Device | null): string => {
     if (!device) return '';
 
@@ -537,11 +449,6 @@ export default function Home() {
   const filteredPoeSwitches = useMemo(() => filterDevices(derivedPoeSwitches, searchTerm, statusFilter), [derivedPoeSwitches, searchTerm, statusFilter]);
   const filteredTvScreens = useMemo(() => filterDevices(tvScreens, searchTerm, statusFilter), [tvScreens, searchTerm, statusFilter]);
 
-  const unmappedDevices = useMemo(() => {
-    const mappedLocations = Object.keys(locationCoordinates);
-    return allDevices.filter(device => !mappedLocations.includes(device.location));
-  }, [allDevices, locationCoordinates]);
-
 
   const getStatusBadgeVariant = (status: DeviceStatus) => {
     switch (status) {
@@ -553,24 +460,6 @@ export default function Home() {
         return 'bg-red-500/20 text-red-400 border-red-500/30';
     }
   }
-  
-  const getDeviceIcon = (device: Device, className: string = "w-5 h-5") => {
-    switch (device.type) {
-        case 'camera': return <Camera className={className} />;
-        case 'nvr': return <Server className={className} />;
-        case 'poe': return <SwitchIcon className={className} />;
-        case 'tv': return <Tv2 className={className} />;
-        default: return null;
-    }
-  };
-  
-  const getPinColor = (status: DeviceStatus) => {
-    switch (status) {
-      case 'active': return 'bg-green-500';
-      case 'inactive': return 'bg-yellow-500';
-      case 'error': return 'bg-red-500';
-    }
-  };
 
   return (
     <div className="min-h-screen bg-background text-foreground p-4 sm:p-6 lg:p-8">
@@ -618,139 +507,22 @@ export default function Home() {
                     <TabsTrigger value="poe"><SwitchIcon className="mr-2"/>PoE Switches ({filteredPoeSwitches.length})</TabsTrigger>
                     <TabsTrigger value="tvs"><Tv2 className="mr-2"/>TV Screens ({filteredTvScreens.length})</TabsTrigger>
                 </TabsList>
-                 <div className="flex items-center gap-2">
-                    <Button variant={viewMode === 'list' ? 'secondary' : 'ghost'} size="icon" onClick={() => setViewMode('list')}><List /></Button>
-                    <Button variant={viewMode === 'map' ? 'secondary' : 'ghost'} size="icon" onClick={() => setViewMode('map')}><Map /></Button>
-                </div>
             </div>
 
-            {viewMode === 'list' ? (
-                <>
-                <TabsContent value="cameras">
-                    <DeviceTable<CameraType> data={filteredCameras} poeSwitches={poeSwitches} nvrs={nvrs} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'camera')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} onPrintSticker={setStickerDevice} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="camera" />
-                </TabsContent>
-                <TabsContent value="nvrs">
-                    <DeviceTable<NVR> data={filteredNvrs} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'nvr')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} onPrintSticker={setStickerDevice} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="nvr" />
-                </TabsContent>
-                <TabsContent value="poe">
-                    <DeviceTable<POESwitch & { derivedStatus?: DeviceStatus }> data={filteredPoeSwitches} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'poe')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} onPrintSticker={setStickerDevice} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="poe" />
-                </TabsContent>
-                 <TabsContent value="tvs">
-                    <DeviceTable<TVScreen> data={filteredTvScreens} nvrs={nvrs} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'tv')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} onPrintSticker={setStickerDevice} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="tv" />
-                </TabsContent>
-                </>
-            ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    <Card className="lg:col-span-2">
-                        <CardHeader className="flex-row items-center justify-between">
-                        <CardTitle>Device Map</CardTitle>
-                        <div className="flex items-center gap-2">
-                            <input
-                                type="file"
-                                ref={mapUploadInputRef}
-                                onChange={handleMapImageUpload}
-                                accept="image/*"
-                                className="hidden"
-                            />
-                            <Button variant="outline" onClick={() => mapUploadInputRef.current?.click()}>
-                                <Upload /> Upload Map
-                            </Button>
-                            <Button variant="outline" size="icon" onClick={() => setZoomLevel(prev => Math.min(prev + 0.1, 3))}><ZoomIn /></Button>
-                            <Slider
-                                value={[zoomLevel]}
-                                onValueChange={(value) => setZoomLevel(value[0])}
-                                min={0.5}
-                                max={3}
-                                step={0.1}
-                                className="w-32"
-                            />
-                            <Button variant="outline" size="icon" onClick={() => setZoomLevel(prev => Math.max(prev - 0.1, 0.5))}><ZoomOut /></Button>
-                        </div>
-                        </CardHeader>
-                        <CardContent>
-                            <TooltipProvider>
-                                <div 
-                                    className="relative w-full aspect-[16/9] bg-muted rounded-lg overflow-auto border"
-                                    onDragOver={handleDragOver}
-                                    onDrop={handleDrop}
-                                >
-                                    <div ref={mapContainerRef} className="relative w-full h-full" style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'top left' }}>
-                                        {mapImageUrl && <img src={mapImageUrl} alt="Office Map" className="w-full h-full object-contain pointer-events-none" />}
-                                        {allDevices.map(device => {
-                                            const coords = locationCoordinates[device.location];
-                                            if (!coords) return null;
-                                            
-                                            const deviceStatus = 'derivedStatus' in device ? device.derivedStatus : device.status;
-                                            const hasInactiveCameras = 'hasInactiveCameras' in device && device.hasInactiveCameras;
-                                            
-                                            return (
-                                                <Tooltip key={device.id} delayDuration={100}>
-                                                    <TooltipTrigger asChild>
-                                                        <div 
-                                                            draggable
-                                                            onDragStart={(e) => handleDragStart(e, device.id)}
-                                                            className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing p-2" 
-                                                            style={{ top: coords.top, left: coords.left }}
-                                                        >
-                                                            <div className="relative flex items-center justify-center">
-                                                                <div className={cn("w-4 h-4 rounded-full", getPinColor(deviceStatus!))}></div>
-                                                                <div className={cn("absolute w-4 h-4 rounded-full animate-ping", getPinColor(deviceStatus!), {'hidden': pinging[device.id] || (device.status !== 'error' && !hasInactiveCameras) })}></div>
-                                                            </div>
-                                                        </div>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent>
-                                                        <div className="flex items-center gap-2">
-                                                            {getDeviceIcon(device)}
-                                                            <div>
-                                                                <p className="font-bold">{device.name}</p>
-                                                                {'ipAddress' in device && device.ipAddress && <p className="text-sm text-muted-foreground">{device.ipAddress}</p>}
-                                                                <p className="text-sm capitalize">Status: {deviceStatus}</p>
-                                                            </div>
-                                                        </div>
-                                                    </TooltipContent>
-                                                </Tooltip>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            </TooltipProvider>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardHeader>
-                           <CardTitle>Unplaced Devices</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <ScrollArea className="h-[calc(100vh-20rem)]">
-                                <div className="space-y-2">
-                                    {unmappedDevices.length > 0 ? (
-                                        unmappedDevices.map(device => (
-                                            <div
-                                                key={device.id}
-                                                draggable
-                                                onDragStart={(e) => handleDragStart(e, device.id)}
-                                                className="flex items-center p-2 rounded-md border bg-card hover:bg-muted cursor-grab active:cursor-grabbing"
-                                            >
-                                                <GripVertical className="h-5 w-5 text-muted-foreground mr-2"/>
-                                                {getDeviceIcon(device, 'h-5 w-5 mr-3')}
-                                                <div className="flex-grow">
-                                                    <p className="font-medium text-sm">{device.name}</p>
-                                                    <p className="text-xs text-muted-foreground">{device.location}</p>
-                                                </div>
-                                                <Badge variant="outline" className={cn('capitalize text-xs', getStatusBadgeVariant('derivedStatus' in device ? device.derivedStatus! : device.status))}>
-                                                    {'derivedStatus' in device ? device.derivedStatus : device.status}
-                                                </Badge>
-                                            </div>
-                                        ))
-                                    ) : (
-                                        <p className="text-sm text-muted-foreground text-center py-4">All devices are placed on the map.</p>
-                                    )}
-                                </div>
-                            </ScrollArea>
-                        </CardContent>
-                    </Card>
-                </div>
-            )}
+            <>
+              <TabsContent value="cameras">
+                  <DeviceTable<CameraType> data={filteredCameras} poeSwitches={poeSwitches} nvrs={nvrs} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'camera')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} onPrintSticker={setStickerDevice} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="camera" />
+              </TabsContent>
+              <TabsContent value="nvrs">
+                  <DeviceTable<NVR> data={filteredNvrs} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'nvr')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} onPrintSticker={setStickerDevice} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="nvr" />
+              </TabsContent>
+              <TabsContent value="poe">
+                  <DeviceTable<POESwitch & { derivedStatus?: DeviceStatus }> data={filteredPoeSwitches} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'poe')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} onPrintSticker={setStickerDevice} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="poe" />
+              </TabsContent>
+                <TabsContent value="tvs">
+                  <DeviceTable<TVScreen> data={filteredTvScreens} nvrs={nvrs} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'tv')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} onPrintSticker={setStickerDevice} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="tv" />
+              </TabsContent>
+            </>
         </Tabs>
       </main>
 
