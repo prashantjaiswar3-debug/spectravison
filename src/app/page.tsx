@@ -222,7 +222,14 @@ export default function Home() {
 
   useEffect(() => {
     if (editingDevice) {
-      form.reset(editingDevice as any); // Type assertion is tricky with discriminated union
+      const defaultValues: Partial<DeviceFormValues> = {
+        ...editingDevice,
+        // @ts-ignore
+        switchPortNumber: editingDevice.switchPortNumber ?? '',
+        // @ts-ignore
+        uplinkPortCount: editingDevice.uplinkPortCount ?? '',
+      }
+      form.reset(defaultValues as any);
     } else {
        const defaultValues: Partial<DeviceFormValues> = {
         name: '',
@@ -234,10 +241,10 @@ export default function Home() {
           form.reset({ ...defaultValues, deviceType, ipAddress: '', installationDate: new Date(), screenChannelNumber: 1, zone: '', poeSwitchId: '', poePortNumber: 1, cameraType: 'dome', quality: 4, nvrId: '', nvrChannelNumber: 1 });
           break;
         case 'nvr':
-           form.reset({ ...defaultValues, deviceType, ipAddress: '', storageCapacity: '', channels: 16, switchId: '', switchPortNumber: undefined });
+           form.reset({ ...defaultValues, deviceType, ipAddress: '', storageCapacity: '', channels: 16, switchId: '', switchPortNumber: '' as any });
           break;
         case 'poe':
-           form.reset({ ...defaultValues, deviceType, portCount: 8, uplinkPortCount: 2 });
+           form.reset({ ...defaultValues, deviceType, portCount: 8, uplinkPortNumber: '' as any });
           break;
         case 'tv':
             form.reset({ ...defaultValues, deviceType, size: 55, nvrId: '' });
@@ -1514,6 +1521,7 @@ function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrint
     
 
     
+
 
 
 
