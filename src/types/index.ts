@@ -1,23 +1,6 @@
 export type DeviceStatus = 'active' | 'inactive' | 'error';
 export type DeviceType = 'camera' | 'nvr' | 'poe' | 'tv';
 
-export interface Location {
-  id: string;
-  name: string;
-  x: number;
-  y: number;
-}
-
-export interface Zone {
-  id: string;
-  name: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  color: string;
-}
-
 export type Camera = {
   id: string;
   name: string;
@@ -28,14 +11,12 @@ export type Camera = {
   type: 'camera';
   screenChannelNumber: number;
   zone: string;
-  zoneId?: string;
   poeSwitchId: string;
   poePortNumber: number;
   cameraType: 'bullet' | 'dome' | 'ptz';
   quality: number; // in megapixels
   nvrId: string;
   nvrChannelNumber: number;
-  locationId?: string;
 };
 
 export type NVR = {
@@ -47,7 +28,6 @@ export type NVR = {
   storageCapacity: string; // e.g., '8TB'
   channels: number;
   type: 'nvr';
-  locationId?: string;
 };
 
 export type POESwitch = {
@@ -60,7 +40,6 @@ export type POESwitch = {
   type: 'poe';
   derivedStatus?: DeviceStatus;
   hasInactiveCameras?: boolean;
-  locationId?: string;
 };
 
 export type TVScreen = {
@@ -72,7 +51,8 @@ export type TVScreen = {
   size: number; // e.g., 55
   type: 'tv';
   nvrId: string;
-  locationId?: string;
 };
 
 export type Device = Camera | NVR | POESwitch | TVScreen;
+
+    
