@@ -10,13 +10,11 @@ import {
   Camera,
   Plus,
   Search,
-  FileText,
   MoreVertical,
   Pencil,
   Trash2,
   Loader2,
   Calendar as CalendarIcon,
-  X,
   Server,
   Network as SwitchIcon,
   Map,
@@ -58,7 +56,6 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-  DialogClose,
 } from '@/components/ui/dialog';
 import {
   AlertDialog,
@@ -96,11 +93,9 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Slider } from '@/components/ui/slider';
 
 
@@ -192,8 +187,6 @@ export default function Home() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingDevice, setEditingDevice] = useState<Device | null>(null);
   const [isReportDialogOpen, setReportDialogOpen] = useState(false);
-  const [reportContent, setReportContent] = useState('');
-  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [pinging, setPinging] = useState<Record<string, boolean>>({});
   const [stickerDevice, setStickerDevice] = useState<Device | null>(null);
@@ -223,7 +216,6 @@ export default function Home() {
             return { ...sw, derivedStatus: 'inactive' as DeviceStatus, hasInactiveCameras: true };
         }
         
-        // Return a mix of active/inactive as active for the switch
         const hasActiveCamera = connectedCameras.some(cam => cam.status === 'active');
         if (hasActiveCamera) {
             return { ...sw, derivedStatus: 'active' as DeviceStatus, hasInactiveCameras: false };
@@ -387,7 +379,7 @@ export default function Home() {
     const printWindow = window.open('', '', 'height=400,width=600');
     if (printWindow && stickerRef.current) {
         printWindow.document.write('<html><head><title>Print Sticker</title>');
-        printWindow.document.write('<style>@media print { body { -webkit-print-color-adjust: exact; color-adjust: exact; } @page { size: 3.5in 2in; margin: 0; } } body { margin: 0; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100%; } .sticker { width: 336px; height: 192px; box-sizing: border-box; border: 1px solid #000; padding: 0; display: flex; flex-direction: column; background: white; color: black; } .header { text-align: center; padding: 4px; border-bottom: 1px solid #000; } .title { font-weight: bold; font-size: 1.5rem; } .location { font-size: 0.9rem; } .details-table { width: 100%; border-collapse: collapse; } .details-table td { border: 1px solid #000; padding: 4px 8px; font-size: 0.9rem; } .details-table td:first-child { border-left: 0; } .details-table td:last-child { border-right: 0; } .details-table tr:last-child td { border-bottom: 0; } .detail-key { font-weight: bold; } </style>');
+        printWindow.document.write('<style>@media print { body { -webkit-print-color-adjust: exact; color-adjust: exact; } @page { size: 3.5in 2in; margin: 0; } } body { margin: 0; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100%; } .sticker { width: 336px; height: 192px; box-sizing: border-box; border: 1px solid #000; padding: 0; display: flex; flex-direction: column; background: white; color: black; } .header { text-align: center; padding: 8px; border-bottom: 2px solid #000; } .title { font-weight: bold; font-size: 1.5rem; } .location { font-size: 0.9rem; } .details-grid { display: grid; grid-template-columns: 1fr 1fr; flex-grow: 1; } .detail-item { padding: 4px 8px; border-right: 1px solid #ccc; border-bottom: 1px solid #ccc; font-size: 0.9rem; } .detail-item:nth-child(2n) { border-right: 0; } .detail-item:nth-last-child(1), .detail-item:nth-last-child(2) { border-bottom: 0; } .detail-key { font-weight: bold; } </style>');
         printWindow.document.write('</head><body style="margin: 0; font-family: sans-serif;">');
         printWindow.document.write(stickerRef.current.innerHTML);
         printWindow.document.write('</body></html>');
@@ -404,7 +396,7 @@ export default function Home() {
     const printWindow = window.open('', '', 'height=800,width=800');
     if (printWindow) {
       printWindow.document.write('<html><head><title>All Device Stickers</title>');
-      printWindow.document.write('<style>@media print { body { -webkit-print-color-adjust: exact; color-adjust: exact; } } body { font-family: sans-serif; } .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(336px, 1fr)); gap: 0.5rem; } .sticker { width: 336px; height: 192px; box-sizing: border-box; border: 1px solid #000; padding: 0; display: flex; flex-direction: column; page-break-inside: avoid; background: white; color: black; } .header { text-align: center; padding: 4px; border-bottom: 1px solid #000; } .title { font-weight: bold; font-size: 1.5rem; } .location { font-size: 0.9rem; } .details-table { width: 100%; border-collapse: collapse; } .details-table td { border: 1px solid #000; padding: 4px 8px; font-size: 0.9rem; } .details-table td:first-child { border-left: 0; } .details-table td:last-child { border-right: 0; } .details-table tr:last-child td { border-bottom: 0; } .detail-key { font-weight: bold; } </style>');
+      printWindow.document.write('<style>@media print { body { -webkit-print-color-adjust: exact; color-adjust: exact; } } body { font-family: sans-serif; } .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(336px, 1fr)); gap: 0.5rem; } .sticker { width: 336px; height: 192px; box-sizing: border-box; border: 1px solid #000; padding: 0; display: flex; flex-direction: column; page-break-inside: avoid; background: white; color: black; } .header { text-align: center; padding: 8px; border-bottom: 2px solid #000; } .title { font-weight: bold; font-size: 1.5rem; } .location { font-size: 0.9rem; } .details-grid { display: grid; grid-template-columns: 1fr 1fr; flex-grow: 1; } .detail-item { padding: 4px 8px; border-right: 1px solid #ccc; border-bottom: 1px solid #ccc; font-size: 0.9rem; } .detail-item:nth-child(2n) { border-right: 0; } .detail-item:nth-last-child(1), .detail-item:nth-last-child(2) { border-bottom: 0; } .detail-key { font-weight: bold; } </style>');
       printWindow.document.write('</head><body>');
       printWindow.document.write('<h1>All Device Stickers</h1><div class="grid">');
 
@@ -451,48 +443,53 @@ export default function Home() {
     const deviceId = e.dataTransfer.getData("deviceId");
     const map = mapContainerRef.current;
     if (!map || !deviceId) return;
-
-    // Find the target pin, if any
+  
+    const device = allDevices.find(d => d.id === deviceId);
+    if (!device) return;
+  
+    // Check if dropped on an existing pin
     let target = e.target as HTMLElement;
-    let targetPin = null;
-
-    // Traverse up the DOM tree from the event target
     while (target && target !== map) {
-        if (target.hasAttribute('data-pin-location')) {
-            targetPin = target;
-            break;
+      if (target.hasAttribute('data-pin-location')) {
+        const existingLocationName = target.getAttribute('data-pin-location');
+        if (existingLocationName && device.location !== existingLocationName) {
+          updateDeviceById(deviceId, { location: existingLocationName });
+          toast({ title: "Location Updated", description: `${device.name} moved to ${existingLocationName}`});
         }
-        target = target.parentElement as HTMLElement;
+        return; // Exit after handling drop on a pin
+      }
+      target = target.parentElement as HTMLElement;
     }
-
-    if (targetPin) {
-        const existingLocationName = targetPin.getAttribute('data-pin-location');
-        if (existingLocationName) {
-            updateDeviceById(deviceId, { location: existingLocationName });
-            toast({ title: "Location Updated", description: `Device moved to ${existingLocationName}`});
-            return;
-        }
-    }
-
-    // If not dropped on a pin, handle as a new location drop
+  
+    // If not dropped on a pin, calculate new coordinates
     const mapRect = map.getBoundingClientRect();
     const x = e.clientX - mapRect.left;
     const y = e.clientY - mapRect.top;
     
     const newTop = `${(y / mapRect.height) * 100}%`;
     const newLeft = `${(x / mapRect.width) * 100}%`;
-
-    const newLocationName = prompt("Enter a name for this new location (or leave blank to cancel):");
-
-    if (newLocationName) {
+  
+    // If the device already has a mapped location, update its coordinates
+    if (device.location && locationCoordinates[device.location]) {
+      setLocationCoordinates(prev => ({
+        ...prev,
+        [device.location]: { top: newTop, left: newLeft }
+      }));
+      toast({ title: "Location Adjusted", description: `${device.name}'s pin for ${device.location} moved.` });
+    } else {
+      // If it's an unplaced device or a device with an unmapped location
+      const newLocationName = prompt("Enter a name for this new location (or leave blank to cancel):");
+      if (newLocationName) {
         setLocationCoordinates(prev => ({
-            ...prev,
-            [newLocationName]: { top: newTop, left: newLeft }
+          ...prev,
+          [newLocationName]: { top: newTop, left: newLeft }
         }));
         updateDeviceById(deviceId, { location: newLocationName });
-        toast({ title: "Location Updated", description: `Device moved to new location: ${newLocationName}`});
+        toast({ title: "Location Set", description: `${device.name} moved to new location: ${newLocationName}`});
+      }
     }
   };
+  
 
   const renderDeviceSticker = (device: Device | null): string => {
     if (!device) return '';
@@ -503,7 +500,7 @@ export default function Home() {
 
         switch (d.type) {
             case 'camera':
-                details = { ...details, NVR: `${nvrMap[d.nvrId]}:${d.nvrChannelNumber}`, PoE: `${poeSwitchMap[d.poeSwitchId]}:${d.poePortNumber}`, Zone: d.zone, Type: d.cameraType, Quality: `${d.quality}MP` };
+                details = { ...details, NVR: `${nvrMap[d.nvrId] || 'N/A'}:${d.nvrChannelNumber}`, PoE: `${poeSwitchMap[d.poeSwitchId] || 'N/A'}:${d.poePortNumber}`, Zone: d.zone, Type: d.cameraType, Quality: `${d.quality}MP` };
                 break;
             case 'nvr':
                 details = { ...details, Storage: d.storageCapacity, Channels: d.channels };
@@ -512,37 +509,26 @@ export default function Home() {
                 details = { ...details, Ports: d.portCount, Budget: d.powerBudget };
                 break;
             case 'tv':
-                details = { ...details, Size: `${d.size}"`, NVR: nvrMap[d.nvrId] };
+                details = { ...details, Size: `${d.size}"`, NVR: nvrMap[d.nvrId] || 'N/A' };
                 break;
         }
         return details;
     };
     
     const detailsObject = getDetails(device);
-    const detailsEntries = Object.entries(detailsObject);
-    let tableRows = '';
-    for (let i = 0; i < detailsEntries.length; i += 2) {
-        const entry1 = detailsEntries[i];
-        const entry2 = detailsEntries[i + 1];
-        tableRows += `
-            <tr>
-                <td><span class="detail-key">${entry1[0]}</span>: ${entry1[1]}</td>
-                ${entry2 ? `<td><span class="detail-key">${entry2[0]}</span>: ${entry2[1]}</td>` : '<td></td>'}
-            </tr>
-        `;
+    let detailsHtml = '';
+    for (const [key, value] of Object.entries(detailsObject)) {
+        detailsHtml += `<div class="detail-item"><span class="detail-key">${key}</span>: ${value}</div>`;
     }
-
 
     return `
       <div class="header">
         <div class="title">${device.name}</div>
         <div class="location">${device.location}</div>
       </div>
-      <table class="details-table">
-        <tbody>
-            ${tableRows}
-        </tbody>
-      </table>
+      <div class="details-grid">
+        ${detailsHtml}
+      </div>
     `;
 };
 
@@ -701,7 +687,7 @@ export default function Home() {
                                     onDrop={handleDrop}
                                 >
                                     <div ref={mapContainerRef} className="relative w-full h-full" style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'center center' }}>
-                                        <img src={mapImageUrl} alt="Office Map" className="w-full h-full object-contain" data-ai-hint="office floor plan" />
+                                        {mapImageUrl && <img src={mapImageUrl} alt="Office Map" className="w-full h-full object-contain" />}
                                         {allDevices.map(device => {
                                             const coords = locationCoordinates[device.location];
                                             if (!coords) return null;
@@ -1149,27 +1135,13 @@ export default function Home() {
             <DialogHeader>
               <DialogTitle>AI-Generated Camera Report</DialogTitle>
               <DialogDescription>
-                Analysis of camera inventory, highlighting potential issues.
+                This feature is disabled in offline mode.
               </DialogDescription>
             </DialogHeader>
-            <ScrollArea className="h-[50vh] my-4">
-              {isGeneratingReport ? (
-                <div className="flex flex-col items-center justify-center h-full gap-4">
-                  <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                  <p className="text-muted-foreground">Generating report, please wait...</p>
-                </div>
-              ) : (
-                <div className="p-4 rounded-md bg-muted/50">
-                  <pre className="whitespace-pre-wrap font-body text-sm">{reportContent}</pre>
-                </div>
-              )}
-            </ScrollArea>
              <DialogFooter>
-                <DialogClose asChild>
-                  <Button type="button" variant="secondary">
+                <Button type="button" variant="secondary" onClick={() => setReportDialogOpen(false)}>
                     Close
-                  </Button>
-                </DialogClose>
+                </Button>
               </DialogFooter>
         </DialogContent>
       </Dialog>
