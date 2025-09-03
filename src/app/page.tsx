@@ -132,7 +132,6 @@ const deviceFormSchema = z.discriminatedUnion('deviceType', [
   }),
   baseDeviceSchema.extend({
     deviceType: z.literal('tv'),
-    ipAddress: z.string().ip({ version: 'v4', message: 'Invalid IPv4 address.' }),
     size: z.coerce.number().int().min(1, { message: 'Screen size must be positive.' }),
     nvrId: z.string().min(1, { message: 'An NVR must be selected.' }),
   }),
@@ -159,8 +158,8 @@ const initialPOESwitches: POESwitch[] = [
 ];
 
 const initialTVScreens: TVScreen[] = [
-    { id: 'tv1', type: 'tv', name: 'Lobby TV', ipAddress: '192.168.1.200', location: 'Main Lobby', status: 'active', size: 55, nvrId: 'nvr1' },
-    { id: 'tv2', type: 'tv', name: 'Break Room TV', ipAddress: '192.168.2.201', location: 'Break Room', status: 'inactive', size: 65, nvrId: 'nvr2' },
+    { id: 'tv1', type: 'tv', name: 'Lobby TV', location: 'Main Lobby', size: 55, nvrId: 'nvr1' },
+    { id: 'tv2', type: 'tv', name: 'Break Room TV', location: 'Break Room', size: 65, nvrId: 'nvr2' },
 ];
 
 export default function Home() {
@@ -242,7 +241,7 @@ export default function Home() {
            form.reset({ ...defaultValues, deviceType, portCount: 8, uplinkPortCount: 2, powerBudget: '' });
           break;
         case 'tv':
-            form.reset({ ...defaultValues, deviceType, ipAddress: '', size: 55, nvrId: '' });
+            form.reset({ ...defaultValues, deviceType, size: 55, nvrId: '' });
             break;
         default:
              form.reset({deviceType: 'camera', name: '', location: ''});
@@ -270,6 +269,7 @@ export default function Home() {
         }
         return;
     }
+    if (!('status' in device)) return;
     setPinging(prev => ({...prev, [device.id]: true}));
     
     setTimeout(() => {
@@ -293,7 +293,7 @@ export default function Home() {
   useEffect(() => {
     const pingInterval = setInterval(() => {
         allDevices.forEach(device => {
-            if (device.status === 'error') {
+            if ('status' in device && device.status === 'error') {
                 handlePing(device, true);
             }
         });
@@ -318,13 +318,22 @@ export default function Home() {
       updateDeviceById(editingDevice.id, finalValues);
       toast({ title: 'Device Updated', description: `Successfully updated ${finalValues.name}.` });
     } else {
-      const newDevice = {
-        id: crypto.randomUUID(),
-        status: 'active' as DeviceStatus,
-        ...finalValues
-      };
+      let newDevice: Device;
+      if (finalValues.deviceType === 'tv') {
+        newDevice = {
+          id: crypto.randomUUID(),
+          ...finalValues
+        } as TVScreen;
+      } else {
+        newDevice = {
+          id: crypto.randomUUID(),
+          status: 'active',
+          ...finalValues
+        } as CameraType | NVR | POESwitch;
+      }
 
-      switch(newDevice.deviceType) {
+
+      switch(newDevice.type) {
         case 'camera':
           setCameras(prev => [...prev, newDevice as CameraType]);
           break;
@@ -457,7 +466,7 @@ export default function Home() {
 
   const filterDevices = <T extends Device>(devices: T[], term: string, status: 'all' | DeviceStatus) => {
     return devices.filter(device => {
-        const deviceStatus = 'derivedStatus' in device ? device.derivedStatus : device.status;
+        const deviceStatus = ('status' in device && device.status) ? ('derivedStatus' in device && device.derivedStatus ? device.derivedStatus : device.status) : 'active';
         return (status === 'all' || deviceStatus === status) &&
         (device.name.toLowerCase().includes(term.toLowerCase()) ||
          device.location.toLowerCase().includes(term.toLowerCase()) ||
@@ -624,7 +633,7 @@ export default function Home() {
                 )}
               />
               
-              { (deviceType === 'camera' || deviceType === 'nvr' || deviceType === 'tv') && 'ipAddress' in form.getValues() && (
+              { (deviceType === 'camera' || deviceType === 'nvr') && 'ipAddress' in form.getValues() && (
                 <FormField
                     control={form.control}
                     name="ipAddress"
@@ -1084,9 +1093,9 @@ function DeviceTable<T extends Device & { derivedStatus?: DeviceStatus }>({ data
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Status</TableHead>
+                    {type !== 'tv' && <TableHead>Status</TableHead>}
                     <TableHead>Name</TableHead>
-                    {type !== 'poe' && <TableHead>IP Address</TableHead>}
+                    {type !== 'poe' && type !== 'tv' && <TableHead>IP Address</TableHead>}
                     <TableHead>Location</TableHead>
                     {type === 'camera' && <TableHead>Type</TableHead>}
                     {type === 'camera' && <TableHead>Quality</TableHead>}
@@ -1106,17 +1115,19 @@ function DeviceTable<T extends Device & { derivedStatus?: DeviceStatus }>({ data
                 <TableBody>
                   {data.length > 0 ? (
                     data.map((item) => {
-                      const itemStatus = item.derivedStatus || item.status;
+                      const itemStatus = item.derivedStatus || ('status' in item ? item.status : 'active');
                       return (
                       <TableRow key={item.id}>
-                        <TableCell>
-                          <Badge variant="outline" className={cn('capitalize', getStatusBadgeVariant(itemStatus))}>
-                            {itemStatus}
-                          </Badge>
-                        </TableCell>
+                        { itemStatus && item.type !== 'tv' && (
+                          <TableCell>
+                            <Badge variant="outline" className={cn('capitalize', getStatusBadgeVariant(itemStatus))}>
+                              {itemStatus}
+                            </Badge>
+                          </TableCell>
+                        )}
                         <TableCell className="font-medium">{item.name}</TableCell>
                         
-                        {type !== 'poe' && 'ipAddress' in item && (
+                        {type !== 'poe' && type !== 'tv' && 'ipAddress' in item && (
                             <TableCell>{item.ipAddress || 'N/A'}</TableCell>
                         )}
                         
@@ -1141,7 +1152,7 @@ function DeviceTable<T extends Device & { derivedStatus?: DeviceStatus }>({ data
                         
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
-                             { item.type !== 'tv' && (
+                             { 'status' in item && item.type !== 'tv' && (
                               <Switch
                                   checked={item.status === 'active'}
                                   onCheckedChange={(checked) => onStatusChange(item, checked)}
@@ -1149,7 +1160,7 @@ function DeviceTable<T extends Device & { derivedStatus?: DeviceStatus }>({ data
                                   disabled={item.type === 'poe'}
                                 />
                              )}
-                            { item.type !== 'tv' && (
+                            { 'status' in item && item.type !== 'tv' && (
                               <TooltipProvider>
                                   <Tooltip>
                                       <TooltipTrigger asChild>
@@ -1331,7 +1342,7 @@ function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrint
     }, [devices, treeView]);
 
     const renderDeviceItem = (item: Device) => {
-        const itemStatus = 'derivedStatus' in item ? item.derivedStatus || item.status : item.status;
+        const itemStatus = 'derivedStatus' in item && item.derivedStatus ? item.derivedStatus : ('status' in item ? item.status : 'active');
         const poeSwitch = (item.type === 'nvr' && item.switchId) ? poeSwitchMap[item.switchId] : null;
 
         return (
@@ -1339,9 +1350,11 @@ function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrint
                 <div className="flex items-center">
                     {getDeviceIcon(item.type)}
                     <span className="font-medium mr-4">{item.name}</span>
-                    <Badge variant="outline" className={cn('capitalize text-xs', getStatusBadgeVariant(itemStatus))}>
-                        {itemStatus}
-                    </Badge>
+                    { itemStatus && (
+                      <Badge variant="outline" className={cn('capitalize text-xs', getStatusBadgeVariant(itemStatus))}>
+                          {itemStatus}
+                      </Badge>
+                    )}
                      {poeSwitch && item.type === 'nvr' && (
                         <p className="text-sm text-muted-foreground ml-4">
                             Connected to: {poeSwitch.name}:{item.switchPortNumber}
@@ -1349,7 +1362,7 @@ function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrint
                     )}
                 </div>
                  <div className="flex items-center justify-end gap-2">
-                    { item.type !== 'tv' && (
+                    { 'status' in item && item.type !== 'tv' && (
                         <Switch
                             checked={item.status === 'active'}
                             onCheckedChange={(checked) => onStatusChange(item, checked)}
@@ -1357,7 +1370,7 @@ function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrint
                             disabled={item.type === 'poe'}
                             />
                     )}
-                    { item.type !== 'tv' && (
+                    { 'status' in item && item.type !== 'tv' && (
                         <TooltipProvider>
                             <Tooltip>
                                 <TooltipTrigger asChild>
@@ -1517,6 +1530,7 @@ function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrint
     
 
     
+
 
 
 

@@ -49,16 +49,15 @@ export type TVScreen = {
   id: string;
   name: string;
   location: string;
-  status: DeviceStatus; // Although not actively used, keep for type consistency
-  ipAddress: string;
   size: number; // e.g., 55
   type: 'tv';
   nvrId: string;
 };
 
-export type Device = Camera | NVR | POESwitch | TVScreen;
+export type Device = (Camera | NVR | POESwitch | TVScreen) & { status?: DeviceStatus };
 
     
+
 
 
 
