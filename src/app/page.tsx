@@ -1133,36 +1133,43 @@ function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrint
     
     const tree = useMemo(() => {
         const nvrs = devices.filter(d => d.type === 'nvr') as NVR[];
-        const poeSwitches = devices.filter(d => d.type === 'poe') as POESwitch[];
+        const poeSwitches = devices.filter(d => d.type === 'poe') as (POESwitch & { derivedStatus?: DeviceStatus })[];
         const cameras = devices.filter(d => d.type === 'camera') as CameraType[];
         const tvs = devices.filter(d => d.type === 'tv') as TVScreen[];
 
-        const nvrTree = nvrs.map(nvr => ({
-            ...nvr,
-            children: [
-                ...cameras.filter(c => c.nvrId === nvr.id),
-                ...tvs.filter(t => t.nvrId === nvr.id)
-            ].sort((a,b) => a.name.localeCompare(b.name))
-        }));
+        const nvrTree = nvrs.map(nvr => {
+            const nvrCameras = cameras.filter(c => c.nvrId === nvr.id);
+            const nvrTvs = tvs.filter(t => t.nvrId === nvr.id);
+            const poeSwitchIds = new Set(nvrCameras.map(c => c.poeSwitchId));
 
-        const poeTree = poeSwitches.map(sw => ({
-            ...sw,
-            children: cameras.filter(c => c.poeSwitchId === sw.id).sort((a,b) => a.name.localeCompare(b.name))
-        }));
+            const poeTree = Array.from(poeSwitchIds).map(poeId => {
+                const poeSwitch = poeSwitches.find(p => p.id === poeId);
+                if (!poeSwitch) return null;
+                return {
+                    ...poeSwitch,
+                    children: nvrCameras.filter(c => c.poeSwitchId === poeId).sort((a, b) => a.name.localeCompare(b.name))
+                };
+            }).filter(Boolean) as (POESwitch & { children: CameraType[] })[];
 
-        const assignedCameraIds = new Set([...cameras.filter(c => c.nvrId || c.poeSwitchId).map(c => c.id)]);
-        const assignedTvIds = new Set([...tvs.filter(t => t.nvrId).map(t => t.id)]);
-        const assignedNvrIds = new Set(nvrs.map(n => n.id));
-        const assignedPoeIds = new Set(poeSwitches.map(p => p.id));
+            const camerasOnPoE = new Set(poeTree.flatMap(p => p.children).map(c => c.id));
+            const otherNvrChildren = [
+                ...nvrCameras.filter(c => !camerasOnPoE.has(c.id)),
+                ...nvrTvs
+            ].sort((a, b) => a.name.localeCompare(b.name));
+
+            return {
+                ...nvr,
+                poeTree,
+                otherChildren: otherNvrChildren
+            };
+        });
+
+        const assignedDeviceIds = new Set(devices.filter(d => (d.type === 'camera' || d.type === 'tv') && 'nvrId' in d && d.nvrId).map(d => d.id));
         
-        const unassigned = devices.filter(d => 
-            (d.type === 'camera' && !assignedCameraIds.has(d.id)) ||
-            (d.type === 'tv' && !assignedTvIds.has(d.id)) ||
-            (d.type === 'nvr' && !assignedNvrIds.has(d.id)) ||
-            (d.type === 'poe' && !assignedPoeIds.has(d.id))
-        ).sort((a,b) => a.name.localeCompare(b.name));
+        const unassigned = devices.filter(d => !assignedDeviceIds.has(d.id) && d.type !== 'nvr' )
+            .sort((a, b) => a.name.localeCompare(b.name));
         
-        return { nvrTree, poeTree, unassigned };
+        return { nvrTree, unassigned };
 
     }, [devices]);
 
@@ -1253,22 +1260,26 @@ function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrint
                                     <span className="font-semibold text-lg">{nvr.name}</span>
                                </div>
                             </AccordionTrigger>
-                            <AccordionContent className="space-y-2">
-                                {nvr.children.length > 0 ? nvr.children.map(renderDeviceItem) : <p className="ml-8 text-muted-foreground">No devices connected.</p>}
-                            </AccordionContent>
-                        </AccordionItem>
-                    ))}
-
-                     {tree.poeTree.map(sw => (
-                        <AccordionItem value={`poe-${sw.id}`} key={`poe-${sw.id}`}>
-                            <AccordionTrigger>
-                               <div className="flex items-center">
-                                    {getDeviceIcon('poe')}
-                                    <span className="font-semibold text-lg">{sw.name}</span>
-                               </div>
-                            </AccordionTrigger>
-                            <AccordionContent className="space-y-2">
-                                {sw.children.length > 0 ? sw.children.map(renderDeviceItem) : <p className="ml-8 text-muted-foreground">No devices connected.</p>}
+                            <AccordionContent className="space-y-2 pl-8">
+                                {nvr.poeTree.map(poeSwitch => (
+                                    <Accordion type="multiple" collapsible key={poeSwitch.id} className="w-full">
+                                        <AccordionItem value={`poe-${poeSwitch.id}`}>
+                                            <AccordionTrigger>
+                                                <div className="flex items-center">
+                                                    {getDeviceIcon('poe')}
+                                                    <span className="font-semibold">{poeSwitch.name}</span>
+                                                </div>
+                                            </AccordionTrigger>
+                                            <AccordionContent className="space-y-2">
+                                                {poeSwitch.children.map(renderDeviceItem)}
+                                            </AccordionContent>
+                                        </AccordionItem>
+                                    </Accordion>
+                                ))}
+                                {nvr.otherChildren.map(renderDeviceItem)}
+                                {nvr.poeTree.length === 0 && nvr.otherChildren.length === 0 && (
+                                     <p className="ml-8 text-muted-foreground">No devices connected.</p>
+                                )}
                             </AccordionContent>
                         </AccordionItem>
                     ))}
@@ -1286,7 +1297,7 @@ function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrint
                         </AccordionItem>
                     )}
                 </Accordion>
-                {tree.nvrTree.length === 0 && tree.poeTree.length === 0 && tree.unassigned.length === 0 && (
+                {tree.nvrTree.length === 0 && tree.unassigned.length === 0 && (
                      <div className="text-center h-24 flex items-center justify-center">
                         <p>No devices found.</p>
                       </div>
