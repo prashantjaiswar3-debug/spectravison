@@ -444,6 +444,21 @@ export default function Home() {
     const map = mapContainerRef.current;
     if (!map || !deviceId) return;
 
+    // Check if dropping on an existing pin
+    let target = e.target as HTMLElement;
+    // Traverse up to find a potential pin container
+    while(target && !target.dataset.locationName && target !== map) {
+        target = target.parentElement as HTMLElement;
+    }
+
+    if (target && target.dataset.locationName) {
+        const existingLocationName = target.dataset.locationName;
+        updateDeviceById(deviceId, { location: existingLocationName });
+        toast({ title: "Location Updated", description: `Device moved to ${existingLocationName}`});
+        return;
+    }
+
+
     const mapRect = map.getBoundingClientRect();
     const x = e.clientX - mapRect.left;
     const y = e.clientY - mapRect.top;
@@ -678,6 +693,7 @@ export default function Home() {
                                                         onDragStart={(e) => handleDragStart(e, device.id)}
                                                         className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing" 
                                                         style={{ top: coords.top, left: coords.left }}
+                                                        data-location-name={device.location}
                                                     >
                                                         <div className="relative flex items-center justify-center">
                                                             <div className={cn("w-4 h-4 rounded-full", getPinColor(device.status))}></div>
@@ -1294,6 +1310,8 @@ function DeviceTable<T extends Device>({ data, poeSwitches, nvrs, onEdit, onDele
         </Card>
     );
 }
+
+    
 
     
 
