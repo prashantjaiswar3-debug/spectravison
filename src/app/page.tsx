@@ -91,6 +91,7 @@ import { cn } from '@/lib/utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Label } from '@/components/ui/label';
 
 
 const baseDeviceSchema = z.object({
@@ -1117,6 +1118,8 @@ function DeviceTable<T extends Device & { derivedStatus?: DeviceStatus }>({ data
     );
 }
 
+type TreeViewRoot = 'nvr' | 'location';
+
 interface DeviceTreeProps {
     devices: Device[];
     onEdit: (device: Device) => void;
@@ -1130,8 +1133,29 @@ interface DeviceTreeProps {
 }
 
 function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrintSticker, pinging, getStatusBadgeVariant, getDeviceIcon }: DeviceTreeProps) {
-    
+    const [treeView, setTreeView] = useState<TreeViewRoot>('nvr');
+
     const tree = useMemo(() => {
+        if (treeView === 'location') {
+            const locations = devices.reduce((acc, device) => {
+                const loc = device.location || 'Unassigned';
+                if (!acc[loc]) {
+                    acc[loc] = [];
+                }
+                acc[loc].push(device);
+                return acc;
+            }, {} as Record<string, Device[]>);
+
+            return Object.entries(locations)
+                .map(([location, devices]) => ({
+                    id: location,
+                    name: location,
+                    children: devices.sort((a,b) => a.name.localeCompare(b.name)),
+                }))
+                .sort((a, b) => a.name.localeCompare(b.name));
+        }
+
+        // NVR-based tree
         const nvrs = devices.filter(d => d.type === 'nvr') as NVR[];
         const poeSwitches = devices.filter(d => d.type === 'poe') as (POESwitch & { derivedStatus?: DeviceStatus })[];
         const cameras = devices.filter(d => d.type === 'camera') as CameraType[];
@@ -1171,7 +1195,7 @@ function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrint
         
         return { nvrTree, unassigned };
 
-    }, [devices]);
+    }, [devices, treeView]);
 
     const renderDeviceItem = (item: Device) => {
         const itemStatus = 'derivedStatus' in item ? item.derivedStatus || item.status : item.status;
@@ -1250,58 +1274,99 @@ function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrint
     
     return (
         <Card>
-            <CardContent className="pt-6 space-y-4">
-                <Accordion type="multiple" className="w-full" collapsible>
-                    {tree.nvrTree.map(nvr => (
-                        <AccordionItem value={`nvr-${nvr.id}`} key={`nvr-${nvr.id}`}>
-                            <AccordionTrigger>
-                               <div className="flex items-center">
-                                    {getDeviceIcon('nvr')}
-                                    <span className="font-semibold text-lg">{nvr.name}</span>
-                               </div>
-                            </AccordionTrigger>
-                            <AccordionContent className="space-y-2 pl-8">
-                                {nvr.poeTree.map(poeSwitch => (
-                                    <Accordion type="multiple" collapsible key={poeSwitch.id} className="w-full">
-                                        <AccordionItem value={`poe-${poeSwitch.id}`}>
-                                            <AccordionTrigger>
-                                                <div className="flex items-center">
-                                                    {getDeviceIcon('poe')}
-                                                    <span className="font-semibold">{poeSwitch.name}</span>
-                                                </div>
-                                            </AccordionTrigger>
-                                            <AccordionContent className="space-y-2">
-                                                {poeSwitch.children.map(renderDeviceItem)}
-                                            </AccordionContent>
-                                        </AccordionItem>
-                                    </Accordion>
-                                ))}
-                                {nvr.otherChildren.map(renderDeviceItem)}
-                                {nvr.poeTree.length === 0 && nvr.otherChildren.length === 0 && (
-                                     <p className="ml-8 text-muted-foreground">No devices connected.</p>
-                                )}
-                            </AccordionContent>
-                        </AccordionItem>
-                    ))}
-                    
-                    {tree.unassigned.length > 0 && (
-                        <AccordionItem value="unassigned">
-                            <AccordionTrigger>
-                               <div className="flex items-center">
-                                    <span className="font-semibold text-lg">Unassigned Devices</span>
-                               </div>
-                            </AccordionTrigger>
-                            <AccordionContent className="space-y-2">
-                                {tree.unassigned.map(renderDeviceItem)}
-                            </AccordionContent>
-                        </AccordionItem>
-                    )}
-                </Accordion>
-                {tree.nvrTree.length === 0 && tree.unassigned.length === 0 && (
-                     <div className="text-center h-24 flex items-center justify-center">
-                        <p>No devices found.</p>
-                      </div>
-                )}
+            <CardHeader>
+                <div className="flex items-center gap-4">
+                    <Label htmlFor="tree-view-select">Group by</Label>
+                    <Select value={treeView} onValueChange={(value) => setTreeView(value as TreeViewRoot)}>
+                        <SelectTrigger id="tree-view-select" className="w-[180px]">
+                            <SelectValue placeholder="Select view" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="nvr">NVR</SelectItem>
+                            <SelectItem value="location">Location</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+            </CardHeader>
+            <CardContent className="pt-0 space-y-4">
+                 {treeView === 'nvr' && 'nvrTree' in tree && (
+                    <>
+                        <Accordion type="multiple" className="w-full" collapsible>
+                            {tree.nvrTree.map(nvr => (
+                                <AccordionItem value={`nvr-${nvr.id}`} key={`nvr-${nvr.id}`}>
+                                    <AccordionTrigger>
+                                    <div className="flex items-center">
+                                            {getDeviceIcon('nvr')}
+                                            <span className="font-semibold text-lg">{nvr.name}</span>
+                                    </div>
+                                    </AccordionTrigger>
+                                    <AccordionContent className="space-y-2 pl-8">
+                                        {nvr.poeTree.map(poeSwitch => (
+                                            <Accordion type="multiple" collapsible key={poeSwitch.id} className="w-full">
+                                                <AccordionItem value={`poe-${poeSwitch.id}`}>
+                                                    <AccordionTrigger>
+                                                        <div className="flex items-center">
+                                                            {getDeviceIcon('poe')}
+                                                            <span className="font-semibold">{poeSwitch.name}</span>
+                                                        </div>
+                                                    </AccordionTrigger>
+                                                    <AccordionContent className="space-y-2">
+                                                        {poeSwitch.children.map(renderDeviceItem)}
+                                                    </AccordionContent>
+                                                </AccordionItem>
+                                            </Accordion>
+                                        ))}
+                                        {nvr.otherChildren.map(renderDeviceItem)}
+                                        {nvr.poeTree.length === 0 && nvr.otherChildren.length === 0 && (
+                                            <p className="ml-8 text-muted-foreground">No devices connected.</p>
+                                        )}
+                                    </AccordionContent>
+                                </AccordionItem>
+                            ))}
+                            
+                            {tree.unassigned.length > 0 && (
+                                <AccordionItem value="unassigned">
+                                    <AccordionTrigger>
+                                    <div className="flex items-center">
+                                            <span className="font-semibold text-lg">Unassigned Devices</span>
+                                    </div>
+                                    </AccordionTrigger>
+                                    <AccordionContent className="space-y-2">
+                                        {tree.unassigned.map(renderDeviceItem)}
+                                    </AccordionContent>
+                                </AccordionItem>
+                            )}
+                        </Accordion>
+                        {tree.nvrTree.length === 0 && tree.unassigned.length === 0 && (
+                            <div className="text-center h-24 flex items-center justify-center">
+                                <p>No devices found.</p>
+                            </div>
+                        )}
+                    </>
+                 )}
+                 {treeView === 'location' && Array.isArray(tree) && (
+                     <>
+                        <Accordion type="multiple" className="w-full" collapsible>
+                           {tree.map(loc => (
+                               <AccordionItem value={loc.id} key={loc.id}>
+                                   <AccordionTrigger>
+                                       <div className="flex items-center">
+                                           <span className="font-semibold text-lg">{loc.name}</span>
+                                       </div>
+                                   </AccordionTrigger>
+                                   <AccordionContent className="space-y-2">
+                                       {loc.children.map(renderDeviceItem)}
+                                   </AccordionContent>
+                               </AccordionItem>
+                           ))}
+                        </Accordion>
+                        {tree.length === 0 && (
+                            <div className="text-center h-24 flex items-center justify-center">
+                                <p>No devices found.</p>
+                            </div>
+                        )}
+                     </>
+                 )}
             </CardContent>
         </Card>
     )
