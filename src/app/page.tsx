@@ -22,6 +22,7 @@ import {
   Tv2,
   Printer,
   QrCode,
+  ListTree,
 } from 'lucide-react';
 
 import type { Camera as CameraType, NVR, POESwitch, Device, DeviceStatus, TVScreen, DeviceType } from '@/types';
@@ -89,6 +90,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 
 const baseDeviceSchema = z.object({
@@ -460,6 +462,15 @@ export default function Home() {
     }
   }
 
+  const getDeviceIcon = (type: DeviceType) => {
+    switch (type) {
+      case 'camera': return <Camera className="w-4 h-4 mr-2" />;
+      case 'nvr': return <Server className="w-4 h-4 mr-2" />;
+      case 'poe': return <SwitchIcon className="w-4 h-4 mr-2" />;
+      case 'tv': return <Tv2 className="w-4 h-4 mr-2" />;
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background text-foreground p-4 sm:p-6 lg:p-8">
       <main className="max-w-7xl mx-auto">
@@ -508,6 +519,7 @@ export default function Home() {
                       <TabsTrigger value="nvrs"><Server className="mr-2"/>NVRs ({filteredNvrs.length})</TabsTrigger>
                       <TabsTrigger value="poe"><SwitchIcon className="mr-2"/>PoE Switches ({filteredPoeSwitches.length})</TabsTrigger>
                       <TabsTrigger value="tvs"><Tv2 className="mr-2"/>TV Screens ({filteredTvScreens.length})</TabsTrigger>
+                      <TabsTrigger value="tree"><ListTree className="mr-2"/>Device Tree</TabsTrigger>
                   </TabsList>
               </div>
 
@@ -523,6 +535,19 @@ export default function Home() {
                 </TabsContent>
                   <TabsContent value="tvs">
                     <DeviceTable<TVScreen> data={filteredTvScreens} nvrs={nvrs} onEdit={handleEdit} onDelete={(id) => handleDelete(id, 'tv')} onStatusChange={handleStatusChange} onPing={(item) => handlePing(item, false)} onPrintSticker={setStickerDevice} pinging={pinging} getStatusBadgeVariant={getStatusBadgeVariant} type="tv" />
+                </TabsContent>
+                 <TabsContent value="tree">
+                    <DeviceTree 
+                        devices={allDevices} 
+                        onEdit={handleEdit}
+                        onDelete={handleDelete}
+                        onStatusChange={handleStatusChange}
+                        onPing={(item) => handlePing(item, false)}
+                        onPrintSticker={setStickerDevice}
+                        pinging={pinging}
+                        getStatusBadgeVariant={getStatusBadgeVariant}
+                        getDeviceIcon={getDeviceIcon}
+                    />
                 </TabsContent>
               </>
           </Tabs>
@@ -1062,7 +1087,7 @@ function DeviceTable<T extends Device & { derivedStatus?: DeviceStatus }>({ data
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
                                           <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                          <AlertDialogAction onClick={() => onDelete(item.id)}>
+                                          <AlertDialogAction onClick={() => onDelete(item.id, item.type)}>
                                             Delete
                                           </AlertDialogAction>
                                         </AlertDialogFooter>
@@ -1092,4 +1117,182 @@ function DeviceTable<T extends Device & { derivedStatus?: DeviceStatus }>({ data
     );
 }
 
+interface DeviceTreeProps {
+    devices: Device[];
+    onEdit: (device: Device) => void;
+    onDelete: (id: string, type: DeviceType) => void;
+    onStatusChange: (device: Device, newStatus: boolean) => void;
+    onPing: (device: Device) => void;
+    onPrintSticker: (device: Device) => void;
+    pinging: Record<string, boolean>;
+    getStatusBadgeVariant: (status: DeviceStatus) => string;
+    getDeviceIcon: (type: DeviceType) => React.ReactNode;
+}
+
+function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrintSticker, pinging, getStatusBadgeVariant, getDeviceIcon }: DeviceTreeProps) {
+    
+    const tree = useMemo(() => {
+        const nvrs = devices.filter(d => d.type === 'nvr') as NVR[];
+        const poeSwitches = devices.filter(d => d.type === 'poe') as POESwitch[];
+        const cameras = devices.filter(d => d.type === 'camera') as CameraType[];
+        const tvs = devices.filter(d => d.type === 'tv') as TVScreen[];
+
+        const nvrTree = nvrs.map(nvr => ({
+            ...nvr,
+            children: [
+                ...cameras.filter(c => c.nvrId === nvr.id),
+                ...tvs.filter(t => t.nvrId === nvr.id)
+            ].sort((a,b) => a.name.localeCompare(b.name))
+        }));
+
+        const poeTree = poeSwitches.map(sw => ({
+            ...sw,
+            children: cameras.filter(c => c.poeSwitchId === sw.id).sort((a,b) => a.name.localeCompare(b.name))
+        }));
+
+        const assignedCameraIds = new Set([...cameras.filter(c => c.nvrId || c.poeSwitchId).map(c => c.id)]);
+        const assignedTvIds = new Set([...tvs.filter(t => t.nvrId).map(t => t.id)]);
+        const assignedNvrIds = new Set(nvrs.map(n => n.id));
+        const assignedPoeIds = new Set(poeSwitches.map(p => p.id));
+        
+        const unassigned = devices.filter(d => 
+            (d.type === 'camera' && !assignedCameraIds.has(d.id)) ||
+            (d.type === 'tv' && !assignedTvIds.has(d.id)) ||
+            (d.type === 'nvr' && !assignedNvrIds.has(d.id)) ||
+            (d.type === 'poe' && !assignedPoeIds.has(d.id))
+        ).sort((a,b) => a.name.localeCompare(b.name));
+        
+        return { nvrTree, poeTree, unassigned };
+
+    }, [devices]);
+
+    const renderDeviceItem = (item: Device) => {
+        const itemStatus = 'derivedStatus' in item ? item.derivedStatus || item.status : item.status;
+        return (
+            <div key={item.id} className="flex items-center justify-between p-2 ml-8 bg-card rounded-md border">
+                <div className="flex items-center">
+                    {getDeviceIcon(item.type)}
+                    <span className="font-medium mr-4">{item.name}</span>
+                    <Badge variant="outline" className={cn('capitalize text-xs', getStatusBadgeVariant(itemStatus))}>
+                        {itemStatus}
+                    </Badge>
+                </div>
+                 <div className="flex items-center justify-end gap-2">
+                    <Switch
+                        checked={item.status === 'active'}
+                        onCheckedChange={(checked) => onStatusChange(item, checked)}
+                        aria-label={`Toggle status for ${item.name}`}
+                        disabled={item.type === 'poe'}
+                        />
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button variant="ghost" size="icon" onClick={() => onPing(item)} disabled={pinging[item.id] || !('ipAddress' in item && item.ipAddress)}>
+                                    {pinging[item.id] ? <Loader2 className="animate-spin" /> : itemStatus === 'error' ? <WifiOff/> : <Wifi/>}
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                {'ipAddress' in item && item.ipAddress ? <p>Ping {item.name}</p> : <p>No IP to ping</p>}
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                            <MoreVertical />
+                        </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                            <DropdownMenuItem onClick={() => onEdit(item)}>
+                                <Pencil /> Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => onPrintSticker(item)}>
+                                <QrCode /> Print Sticker
+                            </DropdownMenuItem>
+                             <>
+                                <DropdownMenuSeparator />
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive">
+                                        <Trash2/> Delete
+                                    </DropdownMenuItem>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                        This action cannot be undone. This will permanently delete "{item.name}".
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => onDelete(item.id, item.type)}>
+                                        Delete
+                                        </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                                </>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </div>
+            </div>
+        );
+    }
+    
+    return (
+        <Card>
+            <CardContent className="pt-6 space-y-4">
+                <Accordion type="multiple" className="w-full" collapsible>
+                    {tree.nvrTree.map(nvr => (
+                        <AccordionItem value={`nvr-${nvr.id}`} key={`nvr-${nvr.id}`}>
+                            <AccordionTrigger>
+                               <div className="flex items-center">
+                                    {getDeviceIcon('nvr')}
+                                    <span className="font-semibold text-lg">{nvr.name}</span>
+                               </div>
+                            </AccordionTrigger>
+                            <AccordionContent className="space-y-2">
+                                {nvr.children.length > 0 ? nvr.children.map(renderDeviceItem) : <p className="ml-8 text-muted-foreground">No devices connected.</p>}
+                            </AccordionContent>
+                        </AccordionItem>
+                    ))}
+
+                     {tree.poeTree.map(sw => (
+                        <AccordionItem value={`poe-${sw.id}`} key={`poe-${sw.id}`}>
+                            <AccordionTrigger>
+                               <div className="flex items-center">
+                                    {getDeviceIcon('poe')}
+                                    <span className="font-semibold text-lg">{sw.name}</span>
+                               </div>
+                            </AccordionTrigger>
+                            <AccordionContent className="space-y-2">
+                                {sw.children.length > 0 ? sw.children.map(renderDeviceItem) : <p className="ml-8 text-muted-foreground">No devices connected.</p>}
+                            </AccordionContent>
+                        </AccordionItem>
+                    ))}
+                    
+                    {tree.unassigned.length > 0 && (
+                        <AccordionItem value="unassigned">
+                            <AccordionTrigger>
+                               <div className="flex items-center">
+                                    <span className="font-semibold text-lg">Unassigned Devices</span>
+                               </div>
+                            </AccordionTrigger>
+                            <AccordionContent className="space-y-2">
+                                {tree.unassigned.map(renderDeviceItem)}
+                            </AccordionContent>
+                        </AccordionItem>
+                    )}
+                </Accordion>
+                {tree.nvrTree.length === 0 && tree.poeTree.length === 0 && tree.unassigned.length === 0 && (
+                     <div className="text-center h-24 flex items-center justify-center">
+                        <p>No devices found.</p>
+                      </div>
+                )}
+            </CardContent>
+        </Card>
+    )
+}
     
