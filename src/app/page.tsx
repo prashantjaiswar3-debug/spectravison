@@ -126,6 +126,8 @@ const deviceFormSchema = z.discriminatedUnion('deviceType', [
     deviceType: z.literal('poe'),
     portCount: z.coerce.number().int().min(1, { message: 'Port count must be at least 1.' }),
     powerBudget: z.string().min(1, { message: 'Power budget is required.' }),
+    uplink1Port: z.string().optional(),
+    uplink2Port: z.string().optional(),
   }),
   baseDeviceSchema.extend({
     deviceType: z.literal('tv'),
@@ -150,9 +152,9 @@ const initialNVRs: NVR[] = [
 ];
 
 const initialPOESwitches: POESwitch[] = [
-  { id: 'poe1', type: 'poe', name: 'Lobby Switch', location: '1st Floor IT Closet', status: 'active', portCount: 8, powerBudget: '120W' },
-  { id: 'poe2', type: 'poe', name: 'Office Switch', location: '2nd Floor IT Closet', status: 'active', portCount: 16, powerBudget: '250W' },
-  { id: 'poe3', type: 'poe', name: 'Warehouse Switch', location: 'Unassigned', status: 'active', portCount: 8, powerBudget: '120W' },
+  { id: 'poe1', type: 'poe', name: 'Lobby Switch', location: '1st Floor IT Closet', status: 'active', portCount: 8, powerBudget: '120W', uplink1Port: 'Router', uplink2Port: '' },
+  { id: 'poe2', type: 'poe', name: 'Office Switch', location: '2nd Floor IT Closet', status: 'active', portCount: 16, powerBudget: '250W', uplink1Port: 'Main NVR', uplink2Port: 'Lobby Switch' },
+  { id: 'poe3', type: 'poe', name: 'Warehouse Switch', location: 'Unassigned', status: 'active', portCount: 8, powerBudget: '120W', uplink1Port: '', uplink2Port: '' },
 ];
 
 const initialTVScreens: TVScreen[] = [
@@ -236,7 +238,7 @@ export default function Home() {
            form.reset({ ...defaultValues, deviceType, ipAddress: '', storageCapacity: '', channels: 16 });
           break;
         case 'poe':
-           form.reset({ ...defaultValues, deviceType, portCount: 8, powerBudget: '' });
+           form.reset({ ...defaultValues, deviceType, portCount: 8, powerBudget: '', uplink1Port: '', uplink2Port: '' });
           break;
         case 'tv':
             form.reset({ ...defaultValues, deviceType, ipAddress: '', size: 55, nvrId: '' });
@@ -413,7 +415,9 @@ export default function Home() {
                 details = { ...details, Storage: d.storageCapacity, Channels: d.channels };
                 break;
             case 'poe':
-                details = { ...details, Ports: d.portCount, Budget: d.powerBudget };
+                 details = { ...details, Ports: d.portCount, Budget: d.powerBudget };
+                 if (d.uplink1Port) details['Uplink 1'] = d.uplink1Port;
+                 if (d.uplink2Port) details['Uplink 2'] = d.uplink2Port;
                 break;
             case 'tv':
                 details = { ...details, Size: `${d.size}"`, NVR: nvrName(d.nvrId) };
@@ -873,6 +877,34 @@ export default function Home() {
                       </FormItem>
                     )}
                   />
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                        control={form.control}
+                        name="uplink1Port"
+                        render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Uplink 1</FormLabel>
+                            <FormControl>
+                                <Input placeholder="e.g., Router" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="uplink2Port"
+                        render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Uplink 2</FormLabel>
+                            <FormControl>
+                                <Input placeholder="e.g., Main NVR" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
+                  </div>
                 </>
               )}
 
@@ -1029,6 +1061,8 @@ function DeviceTable<T extends Device & { derivedStatus?: DeviceStatus }>({ data
                     {type === 'nvr' && <TableHead>Channels</TableHead>}
                     {type === 'poe' && <TableHead>Ports</TableHead>}
                     {type === 'poe' && <TableHead>Power Budget</TableHead>}
+                    {type === 'poe' && <TableHead>Uplink 1</TableHead>}
+                    {type === 'poe' && <TableHead>Uplink 2</TableHead>}
                     {type === 'tv' && <TableHead>Size</TableHead>}
                     {type === 'tv' && <TableHead>Associated NVR</TableHead>}
                     <TableHead className="text-right">Actions</TableHead>
@@ -1064,6 +1098,8 @@ function DeviceTable<T extends Device & { derivedStatus?: DeviceStatus }>({ data
 
                         {item.type === 'poe' && <TableCell>{(item as POESwitch).portCount}</TableCell>}
                         {item.type === 'poe' && <TableCell>{(item as POESwitch).powerBudget}</TableCell>}
+                        {item.type === 'poe' && <TableCell>{(item as POESwitch).uplink1Port || 'N/A'}</TableCell>}
+                        {item.type === 'poe' && <TableCell>{(item as POESwitch).uplink2Port || 'N/A'}</TableCell>}
 
                         {item.type === 'tv' && <TableCell>{(item as TVScreen).size}"</TableCell>}
                         {item.type === 'tv' && <TableCell>{nvrMap[(item as TVScreen).nvrId]}</TableCell>}
@@ -1420,3 +1456,4 @@ function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrint
     
 
     
+
