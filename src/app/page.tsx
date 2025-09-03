@@ -489,41 +489,27 @@ export default function Home() {
     }
   };
 
-  const handleDragStart = (e: DragEvent, deviceId: string, isPlaced: boolean) => {
+  const handleDragStart = (e: DragEvent, deviceId: string) => {
     e.dataTransfer.setData('deviceId', deviceId);
-    e.dataTransfer.setData('isPlaced', String(isPlaced));
-
-    if (isPlaced) {
-      const device = allDevices.find(d => d.id === deviceId);
-      const location = locations.find(l => l.id === device?.locationId);
-      if (location) {
-        const offsetX = e.clientX - location.x;
-        const offsetY = e.clientY - location.y;
-        e.dataTransfer.setData('offsetX', String(offsetX));
-        e.dataTransfer.setData('offsetY', String(offsetY));
-      }
-    }
   };
   
   const handleDrop = (e: DragEvent) => {
       e.preventDefault();
       const deviceId = e.dataTransfer.getData('deviceId');
-      const isPlaced = e.dataTransfer.getData('isPlaced') === 'true';
       const mapRect = mapContainerRef.current?.getBoundingClientRect();
-
       if (!deviceId || !mapRect) return;
+
+      const device = allDevices.find(d => d.id === deviceId);
+      if (!device) return;
 
       const x = e.clientX - mapRect.left;
       const y = e.clientY - mapRect.top;
 
-      if (isPlaced) {
-          // Move existing pin
-          const device = allDevices.find(d => d.id === deviceId);
-          if (device && device.locationId) {
-              setLocations(prev => prev.map(loc => loc.id === device.locationId ? {...loc, x, y} : loc));
-          }
+      if (device.locationId) {
+          // It's a placed device, so just move its location
+          setLocations(prev => prev.map(loc => loc.id === device.locationId ? {...loc, x, y} : loc));
       } else {
-          // Place a new pin
+          // It's an unplaced device, create a new location and assign it
           const locationName = prompt('Enter a name for this new location:');
           if (locationName) {
               const newLocation: Location = { id: crypto.randomUUID(), name: locationName, x, y };
@@ -662,7 +648,7 @@ export default function Home() {
                                 <TooltipTrigger asChild>
                                     <div
                                         draggable
-                                        onDragStart={(e) => handleDragStart(e, device.id, true)}
+                                        onDragStart={(e) => handleDragStart(e, device.id)}
                                         className={cn(
                                             'absolute -translate-x-1/2 -translate-y-1/2 cursor-grab p-1 rounded-full bg-background/70 backdrop-blur-sm',
                                             isFlashing && 'animate-pulse'
@@ -704,7 +690,7 @@ export default function Home() {
                                     <div
                                         key={device.id}
                                         draggable
-                                        onDragStart={(e) => handleDragStart(e, device.id, false)}
+                                        onDragStart={(e) => handleDragStart(e, device.id)}
                                         className="flex items-center gap-2 p-2 rounded-md border bg-muted/50 cursor-grab"
                                     >
                                         {getDeviceIcon(device)}
