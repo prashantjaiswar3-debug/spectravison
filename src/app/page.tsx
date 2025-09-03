@@ -224,10 +224,15 @@ export default function Home() {
     if (editingDevice) {
       const defaultValues: Partial<DeviceFormValues> = {
         ...editingDevice,
+      };
+      // Ensure optional numeric fields are not undefined for controlled components
+      if (editingDevice.type === 'nvr') {
         // @ts-ignore
-        switchPortNumber: editingDevice.switchPortNumber ?? '',
+        defaultValues.switchPortNumber = editingDevice.switchPortNumber ?? '';
+      }
+      if (editingDevice.type === 'poe') {
         // @ts-ignore
-        uplinkPortCount: editingDevice.uplinkPortCount ?? '',
+        defaultValues.uplinkPortCount = editingDevice.uplinkPortCount ?? '';
       }
       form.reset(defaultValues as any);
     } else {
@@ -244,7 +249,7 @@ export default function Home() {
            form.reset({ ...defaultValues, deviceType, ipAddress: '', storageCapacity: '', channels: 16, switchId: '', switchPortNumber: '' as any });
           break;
         case 'poe':
-           form.reset({ ...defaultValues, deviceType, portCount: 8, uplinkPortNumber: '' as any });
+           form.reset({ ...defaultValues, deviceType, portCount: 8, uplinkPortCount: '' as any });
           break;
         case 'tv':
             form.reset({ ...defaultValues, deviceType, size: 55, nvrId: '' });
@@ -361,7 +366,7 @@ export default function Home() {
 
   const handleEdit = (device: Device) => {
     // Find the original device to edit from the state, not the derived one
-    const originalDevice = poeSwitches.find(d => d.id === device.id) || allDevices.find(d => d.id === device.id);
+    const originalDevice = allDevices.find(d => d.id === device.id);
     setEditingDevice(originalDevice || device);
     setIsFormOpen(true);
   };
@@ -1400,7 +1405,7 @@ function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrint
                                     <AlertDialogHeader>
                                         <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                                         <AlertDialogDescription>
-                                        This action cannot be undone. This will permanently delete "{item.name}".
+                                            This action cannot be undone. This will permanently delete "{item.name}".
                                         </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
@@ -1521,6 +1526,7 @@ function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrint
     
 
     
+
 
 
 
