@@ -27,6 +27,7 @@ import {
   ChevronDown,
   ListTodo,
   ListChecks,
+  ScanLine,
 } from 'lucide-react';
 
 import type { Camera as CameraType, NVR, POESwitch, Device, DeviceStatus, TVScreen, DeviceType, Todo } from '@/types';
@@ -87,6 +88,7 @@ import { Label } from '@/components/ui/label';
 import { DeviceForm } from '@/components/device-forms/DeviceForm';
 import { getDeviceFormSchema, type DeviceFormValues } from '@/components/device-forms/schemas';
 import { Checkbox } from '@/components/ui/checkbox';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 
 const initialCameras: CameraType[] = [
@@ -219,8 +221,8 @@ export default function Home() {
     setTvScreens(updater);
   }, [setCameras, setNvrs, setPoeSwitches, setTvScreens]);
 
-  const handlePing = useCallback((device: Device | { id: string, name: string, ipAddress: string }, isAutomatic: boolean = false) => {
-    if (!('ipAddress' in device) || !device.ipAddress) {
+  const handlePing = useCallback((device: { id: string, name: string, ipAddress: string }, isAutomatic: boolean = false) => {
+    if (!device.ipAddress) {
         if (!isAutomatic) {
              toast({
                 title: `Ping ${device.name}`,
@@ -235,28 +237,34 @@ export default function Home() {
     
     setTimeout(() => {
         const isNowActive = Math.random() > 0.2; // 80% chance to recover from error
-        const newStatus = isNowActive ? 'active' : 'error';
         
         if ('type' in device) {
+             const newStatus = isNowActive ? 'active' : 'error';
              updateDeviceById(device.id, { status: newStatus });
+             if (!isAutomatic) {
+                toast({
+                    title: `Ping ${device.name}`,
+                    description: `Device is now ${newStatus}.`,
+                    variant: newStatus === 'error' ? 'default' : 'default',
+                });
+            }
+        } else {
+            // This is for pings from IP Scanner / Checklist where we don't have full device object
+            toast({
+                title: `Ping ${device.name} (${device.ipAddress})`,
+                description: isNowActive ? `Device is responding.` : `Device is not responding.`,
+            });
         }
         
         setPinging(prev => ({...prev, [device.id]: false}));
 
-        if (!isAutomatic) {
-            toast({
-                title: `Ping ${device.name}`,
-                description: `Device is now ${newStatus}.`,
-                variant: newStatus === 'error' ? 'default' : 'default',
-            });
-        }
     }, 1000 + Math.random() * 1000);
   }, [updateDeviceById, toast]);
 
   useEffect(() => {
     const pingInterval = setInterval(() => {
         allDevices.forEach(device => {
-            if ('status' in device && device.status === 'error') {
+            if ('status' in device && 'ipAddress' in device && device.status === 'error') {
                 handlePing(device, true);
             }
         });
@@ -365,36 +373,39 @@ export default function Home() {
   const handlePrintAllStickers = () => {
     const printWindow = window.open('', '_blank');
     if (printWindow) {
-      printWindow.document.write('<html><head><title>All Device Stickers</title>');
-      printWindow.document.write('<style>@media print { body { -webkit-print-color-adjust: exact; color-adjust: exact; } } body { font-family: sans-serif; } .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(336px, 1fr)); gap: 0.5rem; } .sticker { width: 336px; height: 192px; box-sizing: border-box; border: 1px solid #000; padding: 0; display: flex; flex-direction: column; page-break-inside: avoid; background: white; color: black; } .header { text-align: center; padding: 8px; border-bottom: 2px solid #000; } .title { font-weight: bold; font-size: 1.5rem; } .location { font-size: 0.9rem; } .details-grid { display: grid; grid-template-columns: 1fr 1fr; flex-grow: 1; } .detail-item { padding: 4px 8px; border-right: 1px solid #ccc; border-bottom: 1px solid #ccc; font-size: 0.9rem; } .detail-item:nth-child(2n) { border-right: 0; } .detail-item:nth-last-child(1), .detail-item:nth-last-child(2) { border-bottom: 0; } .detail-key { font-weight: bold; } h2 { width: 100%; grid-column: 1 / -1; margin-top: 20px; margin-bottom: 10px; page-break-after: avoid; } </style>');
-      printWindow.document.write('</head><body>');
-      
-      let content = '';
-      const deviceGroups: { [key in DeviceType]?: Device[] } = {
-        camera: cameras,
-        nvr: nvrs,
-        poe: poeSwitches,
-        tv: tvScreens,
-      };
+        printWindow.document.write('<html><head><title>All Device Stickers</title>');
+        printWindow.document.write('<style>@media print { body { -webkit-print-color-adjust: exact; color-adjust: exact; } } body { font-family: sans-serif; } .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(336px, 1fr)); gap: 0.5rem; } .sticker-wrapper { page-break-inside: avoid; } .sticker { width: 336px; height: 192px; box-sizing: border-box; border: 1px solid #000; padding: 0; display: flex; flex-direction: column; background: white; color: black; margin-bottom: 0.5rem; } .header { text-align: center; padding: 8px; border-bottom: 2px solid #000; } .title { font-weight: bold; font-size: 1.5rem; } .location { font-size: 0.9rem; } .details-grid { display: grid; grid-template-columns: 1fr 1fr; flex-grow: 1; } .detail-item { padding: 4px 8px; border-right: 1px solid #ccc; border-bottom: 1px solid #ccc; font-size: 0.9rem; } .detail-item:nth-child(2n) { border-right: 0; } .detail-item:nth-last-child(1), .detail-item:nth-last-child(2) { border-bottom: 0; } .detail-key { font-weight: bold; } h2 { width: 100%; grid-column: 1 / -1; margin-top: 20px; margin-bottom: 10px; page-break-after: avoid; } </style>');
+        printWindow.document.write('</head><body>');
 
-      const groupOrder: DeviceType[] = ['camera', 'nvr', 'poe', 'tv'];
+        let content = '';
+        const deviceGroups: { [key in DeviceType]?: Device[] } = {
+            camera: cameras,
+            nvr: nvrs,
+            poe: poeSwitches,
+            tv: tvScreens,
+        };
 
-      groupOrder.forEach(deviceType => {
-        const devices = deviceGroups[deviceType];
-        if (devices && devices.length > 0) {
-            const typeName = deviceType.charAt(0).toUpperCase() + deviceType.slice(1) + 's';
-            content += `<h2>${typeName}</h2>`;
-            devices.forEach(device => {
-                content += `<div class="sticker">${renderDeviceSticker(device)}</div>`;
-            });
-        }
-      });
-      
-      printWindow.document.write(`<div class="grid">${content}</div>`);
-      printWindow.document.write('</body></html>');
-      printWindow.document.close();
+        const groupOrder: DeviceType[] = ['camera', 'nvr', 'poe', 'tv'];
+
+        groupOrder.forEach(deviceType => {
+            const devices = deviceGroups[deviceType];
+            if (devices && devices.length > 0) {
+                const typeName = deviceType.charAt(0).toUpperCase() + deviceType.slice(1) + 's';
+                content += `<h2>${typeName}</h2>`;
+                content += '<div class="grid">';
+                devices.forEach(device => {
+                    content += `<div class="sticker-wrapper"><div class="sticker">${renderDeviceSticker(device)}</div></div>`;
+                });
+                content += '</div>';
+            }
+        });
+        
+        printWindow.document.write(content);
+        printWindow.document.write('</body></html>');
+        printWindow.document.close();
     }
-  };
+};
+
   
   const renderDeviceSticker = (device: Device | null): string => {
     if (!device) return '';
@@ -552,6 +563,7 @@ export default function Home() {
                       <TabsTrigger value="tree"><ListTree className="mr-2"/>Device Tree</TabsTrigger>
                       <TabsTrigger value="todo"><ListTodo className="mr-2" />Todo List</TabsTrigger>
                       <TabsTrigger value="ip_checklist"><ListChecks className="mr-2" />IP Checklist</TabsTrigger>
+                      <TabsTrigger value="ip_scanner"><ScanLine className="mr-2" />IP Scanner</TabsTrigger>
                   </TabsList>
               </div>
 
@@ -586,7 +598,10 @@ export default function Home() {
                     <TodoList todos={todos} setTodos={setTodos} />
                 </TabsContent>
                  <TabsContent value="ip_checklist">
-                    <IpChecklist devices={allDevices} onPing={(item) => handlePing(item, false)} pinging={pinging} />
+                    <IpChecklist devices={allDevices} onPing={(item) => handlePing(item)} pinging={pinging} />
+                </TabsContent>
+                 <TabsContent value="ip_scanner">
+                    <IpRangeScanner devices={allDevices} onPing={(item) => handlePing(item)} pinging={pinging} />
                 </TabsContent>
               </>
           </Tabs>
@@ -766,16 +781,16 @@ function DeviceTable<T extends Device & { derivedStatus?: DeviceStatus }>({ data
                                   disabled={item.type === 'poe'}
                                 />
                              )}
-                            { 'status' in item && item.type !== 'tv' && (
+                            { 'status' in item && item.type !== 'tv' && 'ipAddress' in item && (
                               <TooltipProvider>
                                   <Tooltip>
                                       <TooltipTrigger asChild>
-                                          <Button variant="ghost" size="icon" onClick={() => onPing(item)} disabled={pinging[item.id] || !('ipAddress' in item && item.ipAddress)}>
+                                          <Button variant="ghost" size="icon" onClick={() => onPing(item)} disabled={pinging[item.id] || !item.ipAddress}>
                                               {pinging[item.id] ? <Loader2 className="animate-spin" /> : itemStatus === 'error' ? <WifiOff/> : <Wifi/>}
                                           </Button>
                                       </TooltipTrigger>
                                       <TooltipContent>
-                                          {'ipAddress' in item && item.ipAddress ? <p>Ping {item.name}</p> : <p>No IP to ping</p>}
+                                          {item.ipAddress ? <p>Ping {item.name}</p> : <p>No IP to ping</p>}
                                       </TooltipContent>
                                   </Tooltip>
                               </TooltipProvider>
@@ -974,16 +989,16 @@ function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrint
                             disabled={item.type === 'poe'}
                             />
                     )}
-                    { 'status' in item && item.type !== 'tv' && (
+                    { 'status' in item && item.type !== 'tv' && 'ipAddress' in item && (
                         <TooltipProvider>
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon" onClick={() => onPing(item)} disabled={pinging[item.id] || !('ipAddress' in item && item.ipAddress)}>
+                                    <Button variant="ghost" size="icon" onClick={() => onPing(item)} disabled={pinging[item.id] || !item.ipAddress}>
                                         {pinging[item.id] ? <Loader2 className="animate-spin" /> : itemStatus === 'error' ? <WifiOff/> : <Wifi/>}
                                     </Button>
                                 </TooltipTrigger>
                                 <TooltipContent>
-                                    {'ipAddress' in item && item.ipAddress ? <p>Ping {item.name}</p> : <p>No IP to ping</p>}
+                                    {item.ipAddress ? <p>Ping {item.name}</p> : <p>No IP to ping</p>}
                                 </TooltipContent>
                             </Tooltip>
                         </TooltipProvider>
@@ -1223,7 +1238,7 @@ function TodoList({ todos, setTodos }: { todos: Todo[], setTodos: React.Dispatch
     );
 }
 
-function IpChecklist({ devices, onPing, pinging }: { devices: Device[], onPing: (device: Device | { id: string, name: string, ipAddress: string }) => void, pinging: Record<string, boolean> }) {
+function IpChecklist({ devices, onPing, pinging }: { devices: Device[], onPing: (device: { id: string, name: string, ipAddress: string }) => void, pinging: Record<string, boolean> }) {
     const ipList = useMemo(() => {
         const ips = new Map<string, { id: string; name: string }>();
         devices.forEach(device => {
@@ -1264,9 +1279,9 @@ function IpChecklist({ devices, onPing, pinging }: { devices: Device[], onPing: 
                                             variant="outline" 
                                             size="sm" 
                                             onClick={() => onPing(item)} 
-                                            disabled={pinging[item.id]}
+                                            disabled={pinging[item.id] || pinging[item.ipAddress]}
                                         >
-                                            {pinging[item.id] ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wifi className="mr-2 h-4 w-4" />}
+                                            {pinging[item.id] || pinging[item.ipAddress] ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wifi className="mr-2 h-4 w-4" />}
                                             Ping
                                         </Button>
                                     </TableCell>
@@ -1285,8 +1300,138 @@ function IpChecklist({ devices, onPing, pinging }: { devices: Device[], onPing: 
         </Card>
     );
 }
+
+function IpRangeScanner({ devices, onPing, pinging }: { devices: (Device & { ipAddress?: string })[], onPing: (device: { id: string, name: string, ipAddress: string }) => void, pinging: Record<string, boolean> }) {
+    const [ipRange, setIpRange] = useState('192.168.1.1-254, 192.168.2.1-254');
+    const [scanResults, setScanResults] = useState<{ reserved: { ip: string, device: Device }[], free: string[] }>({ reserved: [], free: [] });
+
+    const handleScan = useCallback(() => {
+        const reservedIps = new Map<string, Device>();
+        devices.forEach(d => {
+            if (d.ipAddress) {
+                reservedIps.set(d.ipAddress, d);
+            }
+        });
+
+        const allIpsInRange = new Set<string>();
+        const ranges = ipRange.split(',').map(r => r.trim());
+
+        ranges.forEach(range => {
+            const parts = range.split('-');
+            if (parts.length !== 2) return;
+            const [startIpStr, endSuffixStr] = parts;
+            const ipParts = startIpStr.split('.');
+            if (ipParts.length !== 4) return;
+            
+            const baseIp = ipParts.slice(0, 3).join('.');
+            const start = parseInt(ipParts[3], 10);
+            const end = parseInt(endSuffixStr, 10);
+
+            if (isNaN(start) || isNaN(end)) return;
+
+            for (let i = start; i <= end; i++) {
+                allIpsInRange.add(`${baseIp}.${i}`);
+            }
+        });
+        
+        const reserved: { ip: string, device: Device }[] = [];
+        const free: string[] = [];
+
+        allIpsInRange.forEach(ip => {
+            if (reservedIps.has(ip)) {
+                reserved.push({ ip, device: reservedIps.get(ip)! });
+            } else {
+                free.push(ip);
+            }
+        });
+        
+        reserved.sort((a, b) => {
+            const ipToNum = (ip: string) => ip.split('.').reduce((acc, octet) => (acc << 8) + parseInt(octet, 10), 0);
+            return ipToNum(a.ip) - ipToNum(b.ip);
+        });
+
+        setScanResults({ reserved, free });
+
+    }, [ipRange, devices]);
+
+    useEffect(() => {
+        handleScan();
+    }, [handleScan]);
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>IP Address Range Scanner</CardTitle>
+                <CardDescription>
+                    Enter IP ranges to see reserved and free addresses. Use comma to separate multiple ranges.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="flex gap-2 mb-4">
+                    <Input
+                        value={ipRange}
+                        onChange={(e) => setIpRange(e.target.value)}
+                        placeholder="e.g., 192.168.1.1-254, 192.168.2.1-254"
+                    />
+                    <Button onClick={handleScan}>Scan</Button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div>
+                        <h3 className="font-semibold mb-2">Reserved IPs ({scanResults.reserved.length})</h3>
+                        <ScrollArea className="h-96 pr-4">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>IP Address</TableHead>
+                                        <TableHead>Device Name</TableHead>
+                                        <TableHead className="text-right">Action</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {scanResults.reserved.map(({ ip, device }) => (
+                                        <TableRow key={ip}>
+                                            <TableCell className="font-mono">{ip}</TableCell>
+                                            <TableCell>{device.name}</TableCell>
+                                            <TableCell className="text-right">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => onPing({ id: device.id, name: device.name, ipAddress: ip })}
+                                                    disabled={pinging[device.id] || pinging[ip]}
+                                                >
+                                                    {pinging[device.id] || pinging[ip] ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wifi className="h-4 w-4" />}
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </ScrollArea>
+                    </div>
+                    <div>
+                        <h3 className="font-semibold mb-2">Free IPs ({scanResults.free.length})</h3>
+                        <ScrollArea className="h-96 pr-4">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>IP Address</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {scanResults.free.map(ip => (
+                                        <TableRow key={ip}>
+                                            <TableCell className="font-mono">{ip}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </ScrollArea>
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
     
-
     
-
-
