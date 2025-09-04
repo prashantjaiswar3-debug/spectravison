@@ -54,10 +54,9 @@ export function DeviceForm({
     if (editingDevice) {
       defaultValues = {
         ...editingDevice,
-        // Ensure optional number fields that are bound to inputs have a fallback value
         switchPortNumber: editingDevice.type === 'nvr' ? editingDevice.switchPortNumber ?? '' : undefined,
         uplinkPortCount: editingDevice.type === 'poe' ? editingDevice.uplinkPortCount ?? '' : undefined,
-      } as any; // Cast to any to handle discriminated union complexity
+      } as any; 
     } else {
       defaultValues = {
         deviceType,
@@ -69,7 +68,7 @@ export function DeviceForm({
           defaultValues = { ...defaultValues, ipAddress: '', installationDate: new Date(), screenChannelNumber: 1, zone: '', poeSwitchId: '', poePortNumber: 1, cameraType: 'dome', quality: 4, nvrId: '', nvrChannelNumber: 1 };
           break;
         case 'nvr':
-          defaultValues = { ...defaultValues, ipAddress: '', storageCapacity: '', channels: 16, switchId: '', switchPortNumber: '', details: '' };
+          defaultValues = { ...defaultValues, ipAddress: '', storageCapacity: '', channels: 16, switchId: '', switchPortNumber: '' };
           break;
         case 'poe':
           defaultValues = { ...defaultValues, portCount: 8, uplinkPortCount: '' };
@@ -83,8 +82,6 @@ export function DeviceForm({
   }, [editingDevice, deviceType, form]);
   
   useEffect(() => {
-    // This is necessary to set the deviceType for validation purposes,
-    // even though the field is not visible in the UI.
     form.setValue('deviceType', deviceType);
   }, [deviceType, form]);
 

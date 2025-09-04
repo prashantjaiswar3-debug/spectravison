@@ -93,8 +93,8 @@ const initialCameras: CameraType[] = [
 ];
 
 const initialNVRs: NVR[] = [
-  { id: 'nvr1', type: 'nvr', name: 'Main NVR', ipAddress: '192.168.1.50', location: 'Server Room', status: 'active', storageCapacity: '16TB', channels: 16, switchId: 'poe1', switchPortNumber: 8, details: 'Primary recorder for all lobby and exterior cameras.' },
-  { id: 'nvr2', type: 'nvr', name: 'Backup NVR', ipAddress: '192.168.1.51', location: 'Server Room', status: 'inactive', storageCapacity: '8TB', channels: 8, details: 'Backup recorder for critical office areas.' },
+  { id: 'nvr1', type: 'nvr', name: 'Main NVR', ipAddress: '192.168.1.50', location: 'Server Room', status: 'active', storageCapacity: '16TB', channels: 16, switchId: 'poe1', switchPortNumber: 8 },
+  { id: 'nvr2', type: 'nvr', name: 'Backup NVR', ipAddress: '192.168.1.51', location: 'Server Room', status: 'inactive', storageCapacity: '8TB', channels: 8 },
 ];
 
 const initialPOESwitches: POESwitch[] = [
@@ -1065,6 +1065,7 @@ function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrint
     
 
     
+
 
 
 

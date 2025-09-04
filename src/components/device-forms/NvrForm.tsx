@@ -104,23 +104,6 @@ export function NvrForm({ poeSwitches }: NvrFormProps) {
             )}
         />
       </div>
-      <FormField
-        control={form.control}
-        name="details"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Details</FormLabel>
-            <FormControl>
-              <Textarea
-                placeholder="e.g., Rack location, purchase date, notes..."
-                className="resize-none"
-                {...field}
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
     </>
   )
 }

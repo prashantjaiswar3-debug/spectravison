@@ -30,7 +30,6 @@ export type NVR = {
   type: 'nvr';
   switchId?: string;
   switchPortNumber?: number;
-  details?: string;
 };
 
 export type POESwitch = {
@@ -55,5 +54,3 @@ export type TVScreen = {
 };
 
 export type Device = (Camera | NVR | POESwitch | TVScreen) & { status?: DeviceStatus };
-
-    
