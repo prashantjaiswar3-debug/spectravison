@@ -25,12 +25,14 @@ import {
   Share2,
   ArrowRight,
   ChevronDown,
+  ListTodo,
+  ListChecks,
 } from 'lucide-react';
 
-import type { Camera as CameraType, NVR, POESwitch, Device, DeviceStatus, TVScreen, DeviceType } from '@/types';
+import type { Camera as CameraType, NVR, POESwitch, Device, DeviceStatus, TVScreen, DeviceType, Todo } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import {
   Table,
   TableHeader,
@@ -84,6 +86,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Label } from '@/components/ui/label';
 import { DeviceForm } from '@/components/device-forms/DeviceForm';
 import { getDeviceFormSchema, type DeviceFormValues } from '@/components/device-forms/schemas';
+import { Checkbox } from '@/components/ui/checkbox';
 
 
 const initialCameras: CameraType[] = [
@@ -108,6 +111,11 @@ const initialTVScreens: TVScreen[] = [
     { id: 'tv1', type: 'tv', name: 'Lobby TV', location: 'Main Lobby', size: 55, nvrId: 'nvr1' },
     { id: 'tv2', type: 'tv', name: 'Break Room TV', location: 'Break Room', size: 65, nvrId: 'nvr2' },
 ];
+
+const initialTodos: Todo[] = [
+    { id: crypto.randomUUID(), text: 'Check firmware on Lobby Cam 1', completed: false },
+    { id: crypto.randomUUID(), text: 'Replace faulty cable for Rooftop East', completed: true },
+]
 
 function useStoredState<T>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] {
     const [state, setState] = useState<T>(() => {
@@ -151,6 +159,8 @@ export default function Home() {
   const [nvrs, setNvrs] = useStoredState<NVR[]>('cctv_nvrs', initialNVRs);
   const [poeSwitches, setPoeSwitches] = useStoredState<POESwitch[]>('cctv_poe_switches', initialPOESwitches);
   const [tvScreens, setTvScreens] = useStoredState<TVScreen[]>('cctv_tv_screens', initialTVScreens);
+  const [todos, setTodos] = useStoredState<Todo[]>('cctv_todos', initialTodos);
+
   
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | DeviceStatus>('all');
@@ -209,7 +219,7 @@ export default function Home() {
     setTvScreens(updater);
   }, [setCameras, setNvrs, setPoeSwitches, setTvScreens]);
 
-  const handlePing = useCallback((device: Device, isAutomatic: boolean = false) => {
+  const handlePing = useCallback((device: Device | { id: string, name: string, ipAddress: string }, isAutomatic: boolean = false) => {
     if (!('ipAddress' in device) || !device.ipAddress) {
         if (!isAutomatic) {
              toast({
@@ -220,14 +230,16 @@ export default function Home() {
         }
         return;
     }
-    if (!('status' in device)) return;
+    
     setPinging(prev => ({...prev, [device.id]: true}));
     
     setTimeout(() => {
         const isNowActive = Math.random() > 0.2; // 80% chance to recover from error
         const newStatus = isNowActive ? 'active' : 'error';
         
-        updateDeviceById(device.id, { status: newStatus });
+        if ('type' in device) {
+             updateDeviceById(device.id, { status: newStatus });
+        }
         
         setPinging(prev => ({...prev, [device.id]: false}));
 
@@ -538,6 +550,8 @@ export default function Home() {
                       <TabsTrigger value="poe"><SwitchIcon className="mr-2"/>PoE Switches ({filteredPoeSwitches.length})</TabsTrigger>
                       <TabsTrigger value="tvs"><Tv2 className="mr-2"/>TV Screens ({filteredTvScreens.length})</TabsTrigger>
                       <TabsTrigger value="tree"><ListTree className="mr-2"/>Device Tree</TabsTrigger>
+                      <TabsTrigger value="todo"><ListTodo className="mr-2" />Todo List</TabsTrigger>
+                      <TabsTrigger value="ip_checklist"><ListChecks className="mr-2" />IP Checklist</TabsTrigger>
                   </TabsList>
               </div>
 
@@ -567,6 +581,12 @@ export default function Home() {
                         getDeviceIcon={getDeviceIcon}
                         poeSwitchMap={poeSwitchMap}
                     />
+                </TabsContent>
+                <TabsContent value="todo">
+                    <TodoList todos={todos} setTodos={setTodos} />
+                </TabsContent>
+                 <TabsContent value="ip_checklist">
+                    <IpChecklist devices={allDevices} onPing={(item) => handlePing(item, false)} pinging={pinging} />
                 </TabsContent>
               </>
           </Tabs>
@@ -1111,6 +1131,161 @@ function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrint
         </Card>
     )
 }
+
+function TodoList({ todos, setTodos }: { todos: Todo[], setTodos: React.Dispatch<React.SetStateAction<Todo[]>>}) {
+    const [newTodoText, setNewTodoText] = useState('');
+    const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
+
+    const handleAddTodo = () => {
+        if (newTodoText.trim() === '') return;
+        setTodos(prev => [...prev, { id: crypto.randomUUID(), text: newTodoText.trim(), completed: false }]);
+        setNewTodoText('');
+    };
+    
+    const handleUpdateTodo = () => {
+        if (!editingTodo || editingTodo.text.trim() === '') return;
+        setTodos(prev => prev.map(t => t.id === editingTodo.id ? editingTodo : t));
+        setEditingTodo(null);
+    }
+
+    const handleToggleTodo = (id: string) => {
+        setTodos(prev => prev.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+    };
+
+    const handleDeleteTodo = (id: string) => {
+        setTodos(prev => prev.filter(t => t.id !== id));
+    };
+
+    const completedCount = useMemo(() => todos.filter(t => t.completed).length, [todos]);
+    const pendingCount = useMemo(() => todos.length - completedCount, [todos, completedCount]);
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Todo List</CardTitle>
+                <CardDescription>
+                    You have {pendingCount} pending task{pendingCount !== 1 && 's'} and {completedCount} completed task{completedCount !== 1 && 's'}.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="flex gap-2 mb-4">
+                    <Input 
+                        value={editingTodo ? editingTodo.text : newTodoText} 
+                        onChange={(e) => {
+                            if (editingTodo) {
+                                setEditingTodo({...editingTodo, text: e.target.value});
+                            } else {
+                                setNewTodoText(e.target.value)
+                            }
+                        }}
+                        placeholder="Add a new task..."
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                                editingTodo ? handleUpdateTodo() : handleAddTodo();
+                            }
+                        }}
+                    />
+                    {editingTodo ? (
+                         <Button onClick={handleUpdateTodo}>Update</Button>
+                    ) : (
+                         <Button onClick={handleAddTodo}>Add Task</Button>
+                    )}
+                </div>
+                <div className="space-y-2">
+                    {todos.length > 0 ? (
+                        todos.map(todo => (
+                            <div key={todo.id} className="flex items-center gap-3 p-2 rounded-md transition-colors hover:bg-muted/50">
+                                <Checkbox
+                                    id={`todo-${todo.id}`}
+                                    checked={todo.completed}
+                                    onCheckedChange={() => handleToggleTodo(todo.id)}
+                                />
+                                <label 
+                                    htmlFor={`todo-${todo.id}`}
+                                    className={cn("flex-1 text-sm", todo.completed && "line-through text-muted-foreground")}
+                                >
+                                    {todo.text}
+                                </label>
+                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditingTodo(todo)}>
+                                    <Pencil className="w-4 h-4"/>
+                                </Button>
+                                <Button variant="ghost" size="icon" className="text-destructive h-8 w-8" onClick={() => handleDeleteTodo(todo.id)}>
+                                    <Trash2 className="w-4 h-4"/>
+                                </Button>
+                            </div>
+                        ))
+                    ) : (
+                        <p className="text-center text-muted-foreground py-8">No tasks yet. Add one above!</p>
+                    )}
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
+function IpChecklist({ devices, onPing, pinging }: { devices: Device[], onPing: (device: Device | { id: string, name: string, ipAddress: string }) => void, pinging: Record<string, boolean> }) {
+    const ipList = useMemo(() => {
+        const ips = new Map<string, { id: string; name: string }>();
+        devices.forEach(device => {
+            if ('ipAddress' in device && device.ipAddress) {
+                if (!ips.has(device.ipAddress)) {
+                    ips.set(device.ipAddress, { id: device.id, name: device.name });
+                }
+            }
+        });
+        return Array.from(ips.entries()).map(([ip, { id, name }]) => ({ id, ipAddress: ip, name })).sort((a,b) => a.name.localeCompare(b.name));
+    }, [devices]);
+    
+    return (
+         <Card>
+            <CardHeader>
+                <CardTitle>IP Address Checklist</CardTitle>
+                <CardDescription>
+                   A list of all unique IP addresses found across your devices. Ping them to check their status.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                 <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Device Name</TableHead>
+                            <TableHead>IP Address</TableHead>
+                            <TableHead className="text-right">Action</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {ipList.length > 0 ? (
+                            ipList.map(item => (
+                                <TableRow key={item.ipAddress}>
+                                    <TableCell className="font-medium">{item.name}</TableCell>
+                                    <TableCell>{item.ipAddress}</TableCell>
+                                    <TableCell className="text-right">
+                                        <Button 
+                                            variant="outline" 
+                                            size="sm" 
+                                            onClick={() => onPing(item)} 
+                                            disabled={pinging[item.id]}
+                                        >
+                                            {pinging[item.id] ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wifi className="mr-2 h-4 w-4" />}
+                                            Ping
+                                        </Button>
+                                    </TableCell>
+                                </TableRow>
+                            ))
+                        ) : (
+                            <TableRow>
+                                <TableCell colSpan={3} className="text-center h-24">
+                                    No devices with IP addresses found.
+                                </TableCell>
+                            </TableRow>
+                        )}
+                    </TableBody>
+                </Table>
+            </CardContent>
+        </Card>
+    );
+}
     
 
     
+

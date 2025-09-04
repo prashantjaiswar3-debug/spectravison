@@ -1,4 +1,5 @@
 
+
 export type DeviceStatus = 'active' | 'inactive' | 'error';
 export type DeviceType = 'camera' | 'nvr' | 'poe' | 'tv';
 
@@ -55,3 +56,9 @@ export type TVScreen = {
 };
 
 export type Device = (Camera | NVR | POESwitch | TVScreen) & { status?: DeviceStatus };
+
+export type Todo = {
+    id: string;
+    text: string;
+    completed: boolean;
+};
