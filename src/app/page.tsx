@@ -22,6 +22,7 @@ import {
   ListTree,
   Share2,
   ArrowRight,
+  ChevronDown,
 } from 'lucide-react';
 
 import type { Camera as CameraType, NVR, POESwitch, Device, DeviceStatus, TVScreen, DeviceType } from '@/types';
@@ -42,6 +43,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuGroup,
 } from '@/components/ui/dropdown-menu';
 import {
   Dialog,
@@ -84,7 +86,7 @@ import { deviceFormSchema, type DeviceFormValues } from '@/components/device-for
 
 const initialCameras: CameraType[] = [
   { id: 'a1b2c3d4', type: 'camera', name: 'Lobby Cam 1', ipAddress: '192.168.1.101', location: 'Main Lobby', installationDate: new Date('2023-01-15'), status: 'active', screenChannelNumber: 1, zone: 'A', poeSwitchId: 'poe1', poePortNumber: 1, cameraType: 'dome', quality: 4, nvrId: 'nvr1', nvrChannelNumber: 1 },
-  { id: 'e5f6g7h8', type: 'camera', name: 'Parking Lot Cam', ipAddress: '192.168.1.102', location: 'Exterior Parking', installationDate: new Date('2022-11-20'), status: 'inactive', screenChannelNumber: 2, zone: 'C', poeSwitchId: 'poe1', poePortNumber: 2, cameraType: 'bullet', quality: 5, nvrId: 'nvr1', nvrChannelNumber: 2 },
+  { id: 'e5f6g7h8', type: 'camera', name: 'Parking Lot Cam', ipAddress: '192.168.1.102', location: 'Exterior Parking', installationDate: new Date('2202-11-20'), status: 'inactive', screenChannelNumber: 2, zone: 'C', poeSwitchId: 'poe1', poePortNumber: 2, cameraType: 'bullet', quality: 5, nvrId: 'nvr1', nvrChannelNumber: 2 },
   { id: 'i9j0k1l2', type: 'camera', name: 'Office Cam 204', ipAddress: '192.168.2.55', location: 'Second Floor, Office 204', installationDate: new Date('2023-05-10'), status: 'active', screenChannelNumber: 3, zone: 'B', poeSwitchId: 'poe2', poePortNumber: 5, cameraType: 'ptz', quality: 8, nvrId: 'nvr2', nvrChannelNumber: 1 },
   { id: 'm3n4o5p6', type: 'camera', name: 'Rooftop East', ipAddress: '192.168.1.108', location: 'Rooftop', installationDate: new Date('2021-08-01'), status: 'error', screenChannelNumber: 4, zone: 'C', poeSwitchId: 'poe2', poePortNumber: 8, cameraType: 'bullet', quality: 3, nvrId: 'nvr2', nvrChannelNumber: 4 },
 ];
@@ -267,9 +269,9 @@ export default function Home() {
     setIsFormOpen(true);
   };
 
-  const handleAddNew = () => {
+  const handleAddNew = (type: DeviceType) => {
     setEditingDevice(null);
-    setFormDeviceType('camera');
+    setFormDeviceType(type);
     setIsFormOpen(true);
   }
 
@@ -426,9 +428,33 @@ export default function Home() {
               <Button onClick={handlePrintAllStickers} variant="outline">
                 <Printer /> Print All Stickers
               </Button>
-              <Button onClick={handleAddNew}>
-                <Plus /> Add Device
-              </Button>
+               <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button>
+                      <Plus /> Add Device <ChevronDown className="ml-2 h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <DropdownMenuGroup>
+                      <DropdownMenuItem onClick={() => handleAddNew('camera')}>
+                        <Camera />
+                        <span>Add Camera</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleAddNew('nvr')}>
+                        <Server />
+                        <span>Add NVR</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleAddNew('poe')}>
+                        <SwitchIcon />
+                        <span>Add PoE Switch</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleAddNew('tv')}>
+                        <Tv2 />
+                        <span>Add TV Screen</span>
+                      </DropdownMenuItem>
+                    </DropdownMenuGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
             </div>
           </div>
         </header>
@@ -1039,6 +1065,7 @@ function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrint
     
 
     
+
 
 
 
