@@ -8,7 +8,7 @@ const baseDeviceSchema = z.object({
   location: z.string().min(2, { message: 'Location must be at least 2 characters.' }),
 });
 
-export const deviceFormSchema = z.discriminatedUnion('deviceType', [
+export const getDeviceFormSchema = () => z.discriminatedUnion('deviceType', [
   baseDeviceSchema.extend({
     deviceType: z.literal('camera'),
     ipAddress: z.string().ip({ version: 'v4', message: 'Invalid IPv4 address.' }),
@@ -51,4 +51,4 @@ export const deviceFormSchema = z.discriminatedUnion('deviceType', [
   }),
 ]);
 
-export type DeviceFormValues = z.infer<typeof deviceFormSchema>;
+export type DeviceFormValues = z.infer<ReturnType<typeof getDeviceFormSchema>>;

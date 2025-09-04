@@ -21,7 +21,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import type { Device, DeviceType, NVR, POESwitch } from "@/types"
-import { deviceFormSchema, type DeviceFormValues } from "./schemas"
+import { getDeviceFormSchema, type DeviceFormValues } from "./schemas"
 import { CameraForm } from "./CameraForm"
 import { NvrForm } from "./NvrForm"
 import { PoeSwitchForm } from "./PoeSwitchForm"
@@ -45,7 +45,10 @@ export function DeviceForm({
   poeSwitches,
 }: DeviceFormProps) {
   const form = useForm<DeviceFormValues>({
-    resolver: deviceType ? zodResolver(deviceFormSchema) : undefined,
+    resolver: zodResolver(getDeviceFormSchema()),
+    defaultValues: {
+      deviceType: deviceType,
+    }
   })
 
   useEffect(() => {
@@ -55,8 +58,9 @@ export function DeviceForm({
       defaultValues = {
         ...editingDevice,
         deviceType: editingDevice.type,
-        switchPortNumber: editingDevice.type === 'nvr' && editingDevice.switchPortNumber ? editingDevice.switchPortNumber : '',
-        uplinkPortCount: editingDevice.type === 'poe' && editingDevice.uplinkPortCount ? editingDevice.uplinkPortCount : '',
+        // Ensure optional number fields are reset to empty string if null/undefined
+        switchPortNumber: 'switchPortNumber' in editingDevice && editingDevice.switchPortNumber ? editingDevice.switchPortNumber : '',
+        uplinkPortCount: 'uplinkPortCount' in editingDevice && editingDevice.uplinkPortCount ? editingDevice.uplinkPortCount : '',
       } as any; 
     } else {
       defaultValues = {

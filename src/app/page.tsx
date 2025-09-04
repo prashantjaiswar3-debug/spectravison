@@ -124,6 +124,12 @@ export default function Home() {
   const [connectionCamera, setConnectionCamera] = useState<CameraType | null>(null);
   const [formDeviceType, setFormDeviceType] = useState<DeviceType | null>(null);
 
+  const [isClient, setIsClient] = useState(false);
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+
   const { toast } = useToast();
   const stickerRef = useRef<HTMLDivElement>(null);
 
@@ -520,7 +526,7 @@ export default function Home() {
 
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
         <DialogContent className="sm:max-w-xl">
-          {formDeviceType && (
+          {isClient && formDeviceType && (
             <DeviceForm
               deviceType={formDeviceType}
               editingDevice={editingDevice}
