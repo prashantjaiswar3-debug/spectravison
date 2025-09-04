@@ -93,8 +93,8 @@ const initialCameras: CameraType[] = [
 ];
 
 const initialNVRs: NVR[] = [
-  { id: 'nvr1', type: 'nvr', name: 'Main NVR', ipAddress: '192.168.1.50', location: 'Server Room', status: 'active', storageCapacity: '16TB', channels: 16, switchId: 'poe1', switchPortNumber: 8 },
-  { id: 'nvr2', type: 'nvr', name: 'Backup NVR', ipAddress: '192.168.1.51', location: 'Server Room', status: 'inactive', storageCapacity: '8TB', channels: 8 },
+  { id: 'nvr1', type: 'nvr', name: 'Main NVR', ipAddress: '192.168.1.50', location: 'Server Room', status: 'active', storageCapacity: '16TB', channels: 16, switchId: 'poe1', switchPortNumber: 8, details: 'Primary recorder for all lobby and exterior cameras.' },
+  { id: 'nvr2', type: 'nvr', name: 'Backup NVR', ipAddress: '192.168.1.51', location: 'Server Room', status: 'inactive', storageCapacity: '8TB', channels: 8, details: 'Backup recorder for critical office areas.' },
 ];
 
 const initialPOESwitches: POESwitch[] = [
@@ -528,7 +528,6 @@ export default function Home() {
         <DialogContent className="sm:max-w-xl">
           <DeviceForm 
             deviceType={formDeviceType}
-            onDeviceTypeChange={setFormDeviceType}
             editingDevice={editingDevice}
             onSubmit={handleFormSubmit}
             onCancel={() => setIsFormOpen(false)}
@@ -863,13 +862,13 @@ function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrint
             ).map(d => d.id)
         );
         
-        const unassignedPoeSwitchIds = new Set(
+        const assignedPoeSwitchIds = new Set(
             nvrTree.flatMap(n => n.poeTree).map(p => p.id)
         );
 
         const unassigned = devices.filter(d => 
             !assignedDeviceIds.has(d.id) &&
-            (d.type !== 'poe' || !unassignedPoeSwitchIds.has(d.id)) &&
+            (d.type !== 'poe' || !assignedPoeSwitchIds.has(d.id)) &&
             d.type !== 'nvr'
         ).sort((a, b) => a.name.localeCompare(b.name));
         
@@ -1066,6 +1065,7 @@ function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrint
     
 
     
+
 
 
 

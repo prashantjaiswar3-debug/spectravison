@@ -18,13 +18,6 @@ import {
   FormMessage,
   Form,
 } from "@/components/ui/form"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import type { Device, DeviceType, NVR, POESwitch } from "@/types"
@@ -36,7 +29,6 @@ import { TvScreenForm } from "./TvScreenForm"
 
 interface DeviceFormProps {
   deviceType: DeviceType;
-  onDeviceTypeChange: (type: DeviceType) => void;
   editingDevice: Device | null;
   onSubmit: (values: DeviceFormValues) => void;
   onCancel: () => void;
@@ -46,7 +38,6 @@ interface DeviceFormProps {
 
 export function DeviceForm({
   deviceType,
-  onDeviceTypeChange,
   editingDevice,
   onSubmit,
   onCancel,
@@ -55,88 +46,60 @@ export function DeviceForm({
 }: DeviceFormProps) {
   const form = useForm<DeviceFormValues>({
     resolver: zodResolver(deviceFormSchema),
-    defaultValues: {
-      deviceType: 'camera',
-      name: '',
-      location: '',
-    },
   })
 
   useEffect(() => {
+    let defaultValues: Partial<DeviceFormValues>;
+    
     if (editingDevice) {
-      const defaultValues: Partial<DeviceFormValues> = {
+      defaultValues = {
         ...editingDevice,
-      };
-      // Ensure optional numeric fields are not undefined for controlled components
-      if (editingDevice.type === 'nvr') {
-        defaultValues.switchPortNumber = editingDevice.switchPortNumber ?? '' as any;
-      }
-      if (editingDevice.type === 'poe') {
-        defaultValues.uplinkPortCount = editingDevice.uplinkPortCount ?? '' as any;
-      }
-      form.reset(defaultValues as any);
+        switchPortNumber: editingDevice.type === 'nvr' ? editingDevice.switchPortNumber ?? '' : undefined,
+        uplinkPortCount: editingDevice.type === 'poe' ? editingDevice.uplinkPortCount ?? '' : undefined,
+      } as any;
     } else {
-      const defaultValues: Partial<DeviceFormValues> = {
+      defaultValues = {
+        deviceType,
         name: '',
         location: '',
       };
-      // Reset with specific fields for the selected type to avoid lingering values
       switch (deviceType) {
         case 'camera':
-          form.reset({ ...defaultValues, deviceType, ipAddress: '', installationDate: new Date(), screenChannelNumber: 1, zone: '', poeSwitchId: '', poePortNumber: 1, cameraType: 'dome', quality: 4, nvrId: '', nvrChannelNumber: 1 });
+          defaultValues = { ...defaultValues, ipAddress: '', installationDate: new Date(), screenChannelNumber: 1, zone: '', poeSwitchId: '', poePortNumber: 1, cameraType: 'dome', quality: 4, nvrId: '', nvrChannelNumber: 1 };
           break;
         case 'nvr':
-          form.reset({ ...defaultValues, deviceType, ipAddress: '', storageCapacity: '', channels: 16, switchId: '', switchPortNumber: '' as any });
+          defaultValues = { ...defaultValues, ipAddress: '', storageCapacity: '', channels: 16, switchId: '', switchPortNumber: '', details: '' };
           break;
         case 'poe':
-          form.reset({ ...defaultValues, deviceType, portCount: 8, uplinkPortCount: '' as any });
+          defaultValues = { ...defaultValues, portCount: 8, uplinkPortCount: '' };
           break;
         case 'tv':
-          form.reset({ ...defaultValues, deviceType, size: 55, nvrId: '' });
+          defaultValues = { ...defaultValues, size: 55, nvrId: '' };
           break;
-        default:
-          form.reset({ deviceType: 'camera', name: '', location: '' });
       }
     }
-  }, [editingDevice, form, deviceType]);
+    form.reset(defaultValues as any);
+  }, [editingDevice, deviceType, form]);
   
-  const currentDeviceType = form.watch('deviceType');
+  useEffect(() => {
+    // This is necessary to set the deviceType for validation purposes,
+    // even though the field is not visible in the UI.
+    form.setValue('deviceType', deviceType);
+  }, [deviceType, form]);
+
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         <DialogHeader>
-          <DialogTitle>{editingDevice ? 'Edit Device' : 'Add New Device'}</DialogTitle>
+          <DialogTitle>{editingDevice ? `Edit ${deviceType.toUpperCase()}` : `Add New ${deviceType.charAt(0).toUpperCase() + deviceType.slice(1)}`}</DialogTitle>
           <DialogDescription>
             {editingDevice
-              ? 'Update the details for this device.'
-              : 'Select a device type and enter its details.'}
+              ? `Update the details for ${editingDevice.name}.`
+              : `Enter the details for the new ${deviceType}.`}
           </DialogDescription>
         </DialogHeader>
 
-        <FormField
-          control={form.control}
-          name="deviceType"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Device Type</FormLabel>
-              <Select onValueChange={(value) => { field.onChange(value); onDeviceTypeChange(value as DeviceType); }} value={field.value} disabled={!!editingDevice}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a device type" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="camera">Camera</SelectItem>
-                  <SelectItem value="nvr">NVR</SelectItem>
-                  <SelectItem value="poe">PoE Switch</SelectItem>
-                  <SelectItem value="tv">TV Screen</SelectItem>
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
         <FormField
           control={form.control}
           name="name"
@@ -164,10 +127,10 @@ export function DeviceForm({
           )}
         />
 
-        {currentDeviceType === 'camera' && <CameraForm nvrs={nvrs} poeSwitches={poeSwitches} />}
-        {currentDeviceType === 'nvr' && <NvrForm poeSwitches={poeSwitches} />}
-        {currentDeviceType === 'poe' && <PoeSwitchForm />}
-        {currentDeviceType === 'tv' && <TvScreenForm nvrs={nvrs} />}
+        {deviceType === 'camera' && <CameraForm nvrs={nvrs} poeSwitches={poeSwitches} />}
+        {deviceType === 'nvr' && <NvrForm poeSwitches={poeSwitches} />}
+        {deviceType === 'poe' && <PoeSwitchForm />}
+        {deviceType === 'tv' && <TvScreenForm nvrs={nvrs} />}
         
         <DialogFooter>
           <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
