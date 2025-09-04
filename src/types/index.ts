@@ -1,3 +1,4 @@
+
 export type DeviceStatus = 'active' | 'inactive' | 'error';
 export type DeviceType = 'camera' | 'nvr' | 'poe' | 'tv';
 

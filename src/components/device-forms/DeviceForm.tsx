@@ -45,7 +45,7 @@ export function DeviceForm({
   poeSwitches,
 }: DeviceFormProps) {
   const form = useForm<DeviceFormValues>({
-    resolver: zodResolver(deviceFormSchema),
+    resolver: deviceType ? zodResolver(deviceFormSchema) : undefined,
   })
 
   useEffect(() => {
@@ -54,6 +54,7 @@ export function DeviceForm({
     if (editingDevice) {
       defaultValues = {
         ...editingDevice,
+        deviceType: editingDevice.type,
         switchPortNumber: editingDevice.type === 'nvr' && editingDevice.switchPortNumber ? editingDevice.switchPortNumber : '',
         uplinkPortCount: editingDevice.type === 'poe' && editingDevice.uplinkPortCount ? editingDevice.uplinkPortCount : '',
       } as any; 
@@ -68,7 +69,7 @@ export function DeviceForm({
           defaultValues = { ...defaultValues, ipAddress: '', installationDate: new Date(), screenChannelNumber: 1, zone: '', poeSwitchId: '', poePortNumber: 1, cameraType: 'dome', quality: 4, nvrId: '', nvrChannelNumber: 1 };
           break;
         case 'nvr':
-          defaultValues = { ...defaultValues, ipAddress: '', storageCapacity: '', details: '', channels: 16, switchId: '', switchPortNumber: '' };
+          defaultValues = { ...defaultValues, ipAddress: '', storageCapacity: '', channels: 16, switchId: '', switchPortNumber: '' };
           break;
         case 'poe':
           defaultValues = { ...defaultValues, portCount: 8, uplinkPortCount: '' };

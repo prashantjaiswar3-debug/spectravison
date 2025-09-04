@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
@@ -87,7 +88,7 @@ import { deviceFormSchema, type DeviceFormValues } from '@/components/device-for
 
 const initialCameras: CameraType[] = [
   { id: 'a1b2c3d4', type: 'camera', name: 'Lobby Cam 1', ipAddress: '192.168.1.101', location: 'Main Lobby', installationDate: new Date('2023-01-15'), status: 'active', screenChannelNumber: 1, zone: 'A', poeSwitchId: 'poe1', poePortNumber: 1, cameraType: 'dome', quality: 4, nvrId: 'nvr1', nvrChannelNumber: 1 },
-  { id: 'e5f6g7h8', type: 'camera', name: 'Parking Lot Cam', ipAddress: '192.168.1.102', location: 'Exterior Parking', installationDate: new Date('2202-11-20'), status: 'inactive', screenChannelNumber: 2, zone: 'C', poeSwitchId: 'poe1', poePortNumber: 2, cameraType: 'bullet', quality: 5, nvrId: 'nvr1', nvrChannelNumber: 2 },
+  { id: 'e5f6g7h8', type: 'camera', name: 'Parking Lot Cam', ipAddress: '192.168.1.102', location: 'Exterior Parking', installationDate: new Date('2022-11-20'), status: 'inactive', screenChannelNumber: 2, zone: 'C', poeSwitchId: 'poe1', poePortNumber: 2, cameraType: 'bullet', quality: 5, nvrId: 'nvr1', nvrChannelNumber: 2 },
   { id: 'i9j0k1l2', type: 'camera', name: 'Office Cam 204', ipAddress: '192.168.2.55', location: 'Second Floor, Office 204', installationDate: new Date('2023-05-10'), status: 'active', screenChannelNumber: 3, zone: 'B', poeSwitchId: 'poe2', poePortNumber: 5, cameraType: 'ptz', quality: 8, nvrId: 'nvr2', nvrChannelNumber: 1 },
   { id: 'm3n4o5p6', type: 'camera', name: 'Rooftop East', ipAddress: '192.168.1.108', location: 'Rooftop', installationDate: new Date('2021-08-01'), status: 'error', screenChannelNumber: 4, zone: 'C', poeSwitchId: 'poe2', poePortNumber: 8, cameraType: 'bullet', quality: 3, nvrId: 'nvr2', nvrChannelNumber: 4 },
 ];
@@ -121,7 +122,7 @@ export default function Home() {
   const [pinging, setPinging] = useState<Record<string, boolean>>({});
   const [stickerDevice, setStickerDevice] = useState<Device | null>(null);
   const [connectionCamera, setConnectionCamera] = useState<CameraType | null>(null);
-  const [formDeviceType, setFormDeviceType] = useState<DeviceType>('camera');
+  const [formDeviceType, setFormDeviceType] = useState<DeviceType | null>(null);
 
   const { toast } = useToast();
   const stickerRef = useRef<HTMLDivElement>(null);
@@ -212,30 +213,23 @@ export default function Home() {
 
   const handleFormSubmit = (values: DeviceFormValues) => {
     const finalValues: any = { ...values };
-
-    if (finalValues.deviceType === 'nvr') {
-        if (finalValues.switchId === '') delete finalValues.switchId;
-        if (finalValues.switchPortNumber === '' || isNaN(finalValues.switchPortNumber)) delete finalValues.switchPortNumber;
-    }
-     if (finalValues.deviceType === 'poe') {
-        if (finalValues.uplinkPortCount === '' || isNaN(finalValues.uplinkPortCount)) delete finalValues.uplinkPortCount;
-    }
     
     if (editingDevice) {
       updateDeviceById(editingDevice.id, finalValues);
       toast({ title: 'Device Updated', description: `Successfully updated ${finalValues.name}.` });
     } else {
       let newDevice: Device;
+      const id = crypto.randomUUID();
       if (finalValues.deviceType === 'tv') {
         newDevice = {
-          id: crypto.randomUUID(),
-          ...finalValues
+          ...finalValues,
+          id,
         } as TVScreen;
       } else {
         newDevice = {
-          id: crypto.randomUUID(),
+          ...finalValues,
+          id,
           status: 'active',
-          ...finalValues
         } as CameraType | NVR | POESwitch;
       }
 
@@ -526,14 +520,16 @@ export default function Home() {
 
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
         <DialogContent className="sm:max-w-xl">
-          <DeviceForm 
-            deviceType={formDeviceType}
-            editingDevice={editingDevice}
-            onSubmit={handleFormSubmit}
-            onCancel={() => setIsFormOpen(false)}
-            nvrs={nvrs}
-            poeSwitches={poeSwitches}
-          />
+          {formDeviceType && (
+            <DeviceForm
+              deviceType={formDeviceType}
+              editingDevice={editingDevice}
+              onSubmit={handleFormSubmit}
+              onCancel={() => setIsFormOpen(false)}
+              nvrs={nvrs}
+              poeSwitches={poeSwitches}
+            />
+          )}
         </DialogContent>
       </Dialog>
       
@@ -1063,20 +1059,3 @@ function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrint
     )
 }
     
-
-    
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

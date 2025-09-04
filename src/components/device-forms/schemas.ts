@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as z from 'zod';
@@ -26,13 +27,22 @@ export const deviceFormSchema = z.discriminatedUnion('deviceType', [
     ipAddress: z.string().ip({ version: 'v4', message: 'Invalid IPv4 address.' }),
     storageCapacity: z.string().min(1, { message: 'Storage capacity is required.' }),
     channels: z.coerce.number().int().min(1, { message: 'Channels must be at least 1.' }),
-    switchId: z.string().optional(),
-    switchPortNumber: z.coerce.number().int().min(1).optional(),
+    switchId: z.string().optional().or(z.literal('')),
+    switchPortNumber: z.coerce.number().int().min(1).optional().or(z.literal('')),
+  }).refine(data => {
+    // If switchId is provided, switchPortNumber must also be provided
+    if (data.switchId && !data.switchPortNumber) {
+      return false;
+    }
+    return true;
+  }, {
+    message: "Port number is required when a switch is selected.",
+    path: ["switchPortNumber"],
   }),
   baseDeviceSchema.extend({
     deviceType: z.literal('poe'),
     portCount: z.coerce.number().int().min(1, { message: 'PoE port count must be at least 1.' }),
-    uplinkPortCount: z.coerce.number().int().min(0).optional(),
+    uplinkPortCount: z.coerce.number().int().min(0).optional().or(z.literal('')),
   }),
   baseDeviceSchema.extend({
     deviceType: z.literal('tv'),
