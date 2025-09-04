@@ -956,7 +956,7 @@ function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrint
             <CardContent className="pt-0 space-y-4">
                  {treeView === 'nvr' && 'nvrTree' in tree && (
                     <>
-                        <Accordion type="multiple" className="w-full" collapsible>
+                        <Accordion type="multiple" className="w-full">
                             {tree.nvrTree.map(nvr => (
                                 <AccordionItem value={`nvr-${nvr.id}`} key={`nvr-${nvr.id}`}>
                                     <AccordionTrigger>
@@ -967,7 +967,7 @@ function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrint
                                     </AccordionTrigger>
                                     <AccordionContent className="space-y-2 pl-8">
                                         {nvr.poeTree.map(poeSwitch => (
-                                            <Accordion type="multiple" collapsible key={poeSwitch.id} className="w-full">
+                                            <Accordion type="multiple" key={poeSwitch.id} className="w-full">
                                                 <AccordionItem value={`poe-${poeSwitch.id}`}>
                                                     <AccordionTrigger>
                                                         <div className="flex items-center">
@@ -1011,7 +1011,7 @@ function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrint
                  )}
                  {treeView === 'location' && Array.isArray(tree) && (
                      <>
-                        <Accordion type="multiple" className="w-full" collapsible>
+                        <Accordion type="multiple" className="w-full">
                            {tree.map(loc => (
                                <AccordionItem value={loc.id} key={loc.id}>
                                    <AccordionTrigger>
@@ -1039,6 +1039,7 @@ function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrint
     
 
     
+
 
 
 
