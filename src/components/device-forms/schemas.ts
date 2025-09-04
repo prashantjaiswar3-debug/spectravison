@@ -8,7 +8,7 @@ const baseDeviceSchema = z.object({
   location: z.string().min(2, { message: 'Location must be at least 2 characters.' }),
 });
 
-export const getDeviceFormSchema = () => z.discriminatedUnion('deviceType', [
+export const getDeviceFormSchema = (deviceType: z.infer<typeof baseDeviceSchema> & { deviceType: string }) => z.discriminatedUnion('deviceType', [
   baseDeviceSchema.extend({
     deviceType: z.literal('camera'),
     ipAddress: z.string().ip({ version: 'v4', message: 'Invalid IPv4 address.' }),
@@ -27,17 +27,6 @@ export const getDeviceFormSchema = () => z.discriminatedUnion('deviceType', [
     ipAddress: z.string().ip({ version: 'v4', message: 'Invalid IPv4 address.' }),
     storageCapacity: z.string().min(1, { message: 'Storage capacity is required.' }),
     channels: z.coerce.number().int().min(1, { message: 'Channels must be at least 1.' }),
-    switchId: z.string().optional().or(z.literal('')),
-    switchPortNumber: z.coerce.number().int().min(1).optional().or(z.literal('')),
-  }).refine(data => {
-    // If switchId is provided, switchPortNumber must also be provided
-    if (data.switchId && !data.switchPortNumber) {
-      return false;
-    }
-    return true;
-  }, {
-    message: "Port number is required when a switch is selected.",
-    path: ["switchPortNumber"],
   }),
   baseDeviceSchema.extend({
     deviceType: z.literal('poe'),
@@ -49,6 +38,6 @@ export const getDeviceFormSchema = () => z.discriminatedUnion('deviceType', [
     size: z.coerce.number().int().min(1, { message: 'Screen size must be positive.' }),
     nvrId: z.string().min(1, { message: 'An NVR must be selected.' }),
   }),
-]);
+]).refine(data => data.deviceType === deviceType.deviceType);
 
 export type DeviceFormValues = z.infer<ReturnType<typeof getDeviceFormSchema>>;

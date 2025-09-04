@@ -45,7 +45,7 @@ export function DeviceForm({
   poeSwitches,
 }: DeviceFormProps) {
   const form = useForm<DeviceFormValues>({
-    resolver: zodResolver(getDeviceFormSchema()),
+    resolver: zodResolver(getDeviceFormSchema({ deviceType } as any)),
     defaultValues: {
       deviceType: deviceType,
     }
@@ -73,7 +73,7 @@ export function DeviceForm({
           defaultValues = { ...defaultValues, ipAddress: '', installationDate: new Date(), screenChannelNumber: 1, zone: '', poeSwitchId: '', poePortNumber: 1, cameraType: 'dome', quality: 4, nvrId: '', nvrChannelNumber: 1 };
           break;
         case 'nvr':
-          defaultValues = { ...defaultValues, ipAddress: '', storageCapacity: '', channels: 16, switchId: '', switchPortNumber: '' };
+          defaultValues = { ...defaultValues, ipAddress: '', storageCapacity: '', channels: 16 };
           break;
         case 'poe':
           defaultValues = { ...defaultValues, portCount: 8, uplinkPortCount: '' };
@@ -135,7 +135,7 @@ export function DeviceForm({
         />
 
         {deviceType === 'camera' && <CameraForm nvrs={nvrs} poeSwitches={poeSwitches} />}
-        {deviceType === 'nvr' && <NvrForm poeSwitches={poeSwitches} />}
+        {deviceType === 'nvr' && <NvrForm />}
         {deviceType === 'poe' && <PoeSwitchForm />}
         {deviceType === 'tv' && <TvScreenForm nvrs={nvrs} />}
         

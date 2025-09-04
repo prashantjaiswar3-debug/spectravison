@@ -9,21 +9,9 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
-import type { POESwitch } from "@/types"
 
-interface NvrFormProps {
-  poeSwitches: POESwitch[];
-}
-
-export function NvrForm({ poeSwitches }: NvrFormProps) {
+export function NvrForm() {
   const form = useFormContext()
   return (
     <>
@@ -46,7 +34,7 @@ export function NvrForm({ poeSwitches }: NvrFormProps) {
           name="storageCapacity"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Storage Capacity</FormLabel>
+              <FormLabel>Storage</FormLabel>
               <FormControl>
                 <Input placeholder="e.g., 16TB" {...field} />
               </FormControl>
@@ -66,42 +54,6 @@ export function NvrForm({ poeSwitches }: NvrFormProps) {
               <FormMessage />
             </FormItem>
           )}
-        />
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <FormField
-            control={form.control}
-            name="switchId"
-            render={({ field }) => (
-            <FormItem>
-                <FormLabel>Switch</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value || ''}>
-                    <FormControl>
-                        <SelectTrigger>
-                        <SelectValue placeholder="Select a switch" />
-                        </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                        <SelectItem value="">None</SelectItem>
-                        {poeSwitches.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                    </SelectContent>
-                </Select>
-                <FormMessage />
-            </FormItem>
-            )}
-        />
-        <FormField
-            control={form.control}
-            name="switchPortNumber"
-            render={({ field }) => (
-            <FormItem>
-                <FormLabel>Switch Port</FormLabel>
-                <FormControl>
-                    <Input type="number" placeholder="e.g., 8" {...field} value={field.value ?? ''} />
-                </FormControl>
-                <FormMessage />
-            </FormItem>
-            )}
         />
       </div>
     </>
