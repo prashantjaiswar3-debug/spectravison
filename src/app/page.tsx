@@ -344,19 +344,32 @@ export default function Home() {
     const printWindow = window.open('', '_blank');
     if (printWindow) {
       printWindow.document.write('<html><head><title>All Device Stickers</title>');
-      printWindow.document.write('<style>@media print { body { -webkit-print-color-adjust: exact; color-adjust: exact; } } body { font-family: sans-serif; } .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(336px, 1fr)); gap: 0.5rem; } .sticker { width: 336px; height: 192px; box-sizing: border-box; border: 1px solid #000; padding: 0; display: flex; flex-direction: column; page-break-inside: avoid; background: white; color: black; } .header { text-align: center; padding: 8px; border-bottom: 2px solid #000; } .title { font-weight: bold; font-size: 1.5rem; } .location { font-size: 0.9rem; } .details-grid { display: grid; grid-template-columns: 1fr 1fr; flex-grow: 1; } .detail-item { padding: 4px 8px; border-right: 1px solid #ccc; border-bottom: 1px solid #ccc; font-size: 0.9rem; } .detail-item:nth-child(2n) { border-right: 0; } .detail-item:nth-last-child(1), .detail-item:nth-last-child(2) { border-bottom: 0; } .detail-key { font-weight: bold; } </style>');
+      printWindow.document.write('<style>@media print { body { -webkit-print-color-adjust: exact; color-adjust: exact; } } body { font-family: sans-serif; } .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(336px, 1fr)); gap: 0.5rem; } .sticker { width: 336px; height: 192px; box-sizing: border-box; border: 1px solid #000; padding: 0; display: flex; flex-direction: column; page-break-inside: avoid; background: white; color: black; } .header { text-align: center; padding: 8px; border-bottom: 2px solid #000; } .title { font-weight: bold; font-size: 1.5rem; } .location { font-size: 0.9rem; } .details-grid { display: grid; grid-template-columns: 1fr 1fr; flex-grow: 1; } .detail-item { padding: 4px 8px; border-right: 1px solid #ccc; border-bottom: 1px solid #ccc; font-size: 0.9rem; } .detail-item:nth-child(2n) { border-right: 0; } .detail-item:nth-last-child(1), .detail-item:nth-last-child(2) { border-bottom: 0; } .detail-key { font-weight: bold; } h2 { width: 100%; grid-column: 1 / -1; margin-top: 20px; margin-bottom: 10px; page-break-after: avoid; } </style>');
       printWindow.document.write('</head><body>');
-      printWindow.document.write('<h1>All Device Stickers</h1><div class="grid">');
+      
+      let content = '';
+      const deviceGroups: { [key in DeviceType]?: Device[] } = {
+        camera: cameras,
+        nvr: nvrs,
+        poe: poeSwitches,
+        tv: tvScreens,
+      };
 
-      allDevices.forEach(device => {
-        printWindow.document.write(
-          `<div class="sticker">
-             ${renderDeviceSticker(device)}
-          </div>`
-        );
+      const groupOrder: DeviceType[] = ['camera', 'nvr', 'poe', 'tv'];
+
+      groupOrder.forEach(deviceType => {
+        const devices = deviceGroups[deviceType];
+        if (devices && devices.length > 0) {
+            const typeName = deviceType.charAt(0).toUpperCase() + deviceType.slice(1) + 's';
+            content += `<h2>${typeName}</h2>`;
+            devices.forEach(device => {
+                content += `<div class="sticker">${renderDeviceSticker(device)}</div>`;
+            });
+        }
       });
       
-      printWindow.document.write('</div></body></html>');
+      printWindow.document.write(`<div class="grid">${content}</div>`);
+      printWindow.document.write('</body></html>');
       printWindow.document.close();
     }
   };
