@@ -30,6 +30,7 @@ export type NVR = {
   type: 'nvr';
   switchId?: string;
   switchPortNumber?: number;
+  details?: string;
 };
 
 export type POESwitch = {

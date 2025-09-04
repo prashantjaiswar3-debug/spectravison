@@ -28,6 +28,7 @@ export const deviceFormSchema = z.discriminatedUnion('deviceType', [
     channels: z.coerce.number().int().min(1, { message: 'Channels must be at least 1.' }),
     switchId: z.string().optional(),
     switchPortNumber: z.coerce.number().int().min(1).optional(),
+    details: z.string().optional(),
   }),
   baseDeviceSchema.extend({
     deviceType: z.literal('poe'),
