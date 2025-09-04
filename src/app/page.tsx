@@ -109,11 +109,48 @@ const initialTVScreens: TVScreen[] = [
     { id: 'tv2', type: 'tv', name: 'Break Room TV', location: 'Break Room', size: 65, nvrId: 'nvr2' },
 ];
 
+function useStoredState<T>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] {
+    const [state, setState] = useState<T>(() => {
+        if (typeof window === 'undefined') {
+            return defaultValue;
+        }
+        try {
+            const item = window.localStorage.getItem(key);
+            if (item) {
+                // Special handling for dates
+                return JSON.parse(item, (k, v) => {
+                    if (k === 'installationDate' && typeof v === 'string') {
+                        const date = new Date(v);
+                        if (!isNaN(date.getTime())) {
+                            return date;
+                        }
+                    }
+                    return v;
+                });
+            }
+        } catch (error) {
+            console.error(`Error reading localStorage key "${key}":`, error);
+        }
+        return defaultValue;
+    });
+
+    useEffect(() => {
+        try {
+            window.localStorage.setItem(key, JSON.stringify(state));
+        } catch (error) {
+            console.error(`Error setting localStorage key "${key}":`, error);
+        }
+    }, [key, state]);
+
+    return [state, setState];
+}
+
+
 export default function Home() {
-  const [cameras, setCameras] = useState<CameraType[]>(initialCameras);
-  const [nvrs, setNvrs] = useState<NVR[]>(initialNVRs);
-  const [poeSwitches, setPoeSwitches] = useState<POESwitch[]>(initialPOESwitches);
-  const [tvScreens, setTvScreens] = useState<TVScreen[]>(initialTVScreens);
+  const [cameras, setCameras] = useStoredState<CameraType[]>('cctv_cameras', initialCameras);
+  const [nvrs, setNvrs] = useStoredState<NVR[]>('cctv_nvrs', initialNVRs);
+  const [poeSwitches, setPoeSwitches] = useStoredState<POESwitch[]>('cctv_poe_switches', initialPOESwitches);
+  const [tvScreens, setTvScreens] = useStoredState<TVScreen[]>('cctv_tv_screens', initialTVScreens);
   
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | DeviceStatus>('all');
@@ -170,7 +207,7 @@ export default function Home() {
     setNvrs(updater);
     setPoeSwitches(updater);
     setTvScreens(updater);
-  }, []);
+  }, [setCameras, setNvrs, setPoeSwitches, setTvScreens]);
 
   const handlePing = useCallback((device: Device, isAutomatic: boolean = false) => {
     if (!('ipAddress' in device) || !device.ipAddress) {
@@ -292,7 +329,7 @@ export default function Home() {
   };
 
   const handlePrintSticker = () => {
-    const printWindow = window.open('', '_blank', 'height=400,width=600');
+    const printWindow = window.open('', '_blank');
     if (printWindow && stickerRef.current) {
         printWindow.document.write('<html><head><title>Print Sticker</title>');
         printWindow.document.write('<style>@media print { body { -webkit-print-color-adjust: exact; color-adjust: exact; } @page { size: 3.5in 2in; margin: 0; } } body { margin: 0; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100%; } .sticker { width: 336px; height: 192px; box-sizing: border-box; border: 1px solid #000; padding: 0; display: flex; flex-direction: column; background: white; color: black; } .header { text-align: center; padding: 8px; border-bottom: 2px solid #000; } .title { font-weight: bold; font-size: 1.5rem; } .location { font-size: 0.9rem; } .details-grid { display: grid; grid-template-columns: 1fr 1fr; flex-grow: 1; } .detail-item { padding: 4px 8px; border-right: 1px solid #ccc; border-bottom: 1px solid #ccc; font-size: 0.9rem; } .detail-item:nth-child(2n) { border-right: 0; } .detail-item:nth-last-child(1), .detail-item:nth-last-child(2) { border-bottom: 0; } .detail-key { font-weight: bold; } </style>');
@@ -300,12 +337,11 @@ export default function Home() {
         printWindow.document.write(stickerRef.current.innerHTML);
         printWindow.document.write('</body></html>');
         printWindow.document.close();
-        printWindow.focus();
     }
   };
 
   const handlePrintAllStickers = () => {
-    const printWindow = window.open('', '_blank', 'height=800,width=800');
+    const printWindow = window.open('', '_blank');
     if (printWindow) {
       printWindow.document.write('<html><head><title>All Device Stickers</title>');
       printWindow.document.write('<style>@media print { body { -webkit-print-color-adjust: exact; color-adjust: exact; } } body { font-family: sans-serif; } .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(336px, 1fr)); gap: 0.5rem; } .sticker { width: 336px; height: 192px; box-sizing: border-box; border: 1px solid #000; padding: 0; display: flex; flex-direction: column; page-break-inside: avoid; background: white; color: black; } .header { text-align: center; padding: 8px; border-bottom: 2px solid #000; } .title { font-weight: bold; font-size: 1.5rem; } .location { font-size: 0.9rem; } .details-grid { display: grid; grid-template-columns: 1fr 1fr; flex-grow: 1; } .detail-item { padding: 4px 8px; border-right: 1px solid #ccc; border-bottom: 1px solid #ccc; font-size: 0.9rem; } .detail-item:nth-child(2n) { border-right: 0; } .detail-item:nth-last-child(1), .detail-item:nth-last-child(2) { border-bottom: 0; } .detail-key { font-weight: bold; } </style>');
@@ -322,7 +358,6 @@ export default function Home() {
       
       printWindow.document.write('</div></body></html>');
       printWindow.document.close();
-      printWindow.focus();
     }
   };
   
