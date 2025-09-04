@@ -87,10 +87,10 @@ import { getDeviceFormSchema, type DeviceFormValues } from '@/components/device-
 
 
 const initialCameras: CameraType[] = [
-  { id: 'a1b2c3d4', type: 'camera', name: 'Lobby Cam 1', ipAddress: '192.168.1.101', location: 'Main Lobby', installationDate: new Date('2023-01-15'), status: 'active', screenChannelNumber: 1, zone: 'A', poeSwitchId: 'poe1', poePortNumber: 1, cameraType: 'dome', quality: 4, nvrId: 'nvr1', nvrChannelNumber: 1 },
-  { id: 'e5f6g7h8', type: 'camera', name: 'Parking Lot Cam', ipAddress: '192.168.1.102', location: 'Exterior Parking', installationDate: new Date('2022-11-20'), status: 'inactive', screenChannelNumber: 2, zone: 'C', poeSwitchId: 'poe1', poePortNumber: 2, cameraType: 'bullet', quality: 5, nvrId: 'nvr1', nvrChannelNumber: 2 },
-  { id: 'i9j0k1l2', type: 'camera', name: 'Office Cam 204', ipAddress: '192.168.2.55', location: 'Second Floor, Office 204', installationDate: new Date('2023-05-10'), status: 'active', screenChannelNumber: 3, zone: 'B', poeSwitchId: 'poe2', poePortNumber: 5, cameraType: 'ptz', quality: 8, nvrId: 'nvr2', nvrChannelNumber: 1 },
-  { id: 'm3n4o5p6', type: 'camera', name: 'Rooftop East', ipAddress: '192.168.1.108', location: 'Rooftop', installationDate: new Date('2021-08-01'), status: 'error', screenChannelNumber: 4, zone: 'C', poeSwitchId: 'poe2', poePortNumber: 8, cameraType: 'bullet', quality: 3, nvrId: 'nvr2', nvrChannelNumber: 4 },
+  { id: 'Cam-1', type: 'camera', name: 'Lobby Cam 1', ipAddress: '192.168.1.101', location: 'Main Lobby', installationDate: new Date('2023-01-15'), status: 'active', screenChannelNumber: 1, zone: 'A', poeSwitchId: 'poe1', poePortNumber: 1, cameraType: 'dome', quality: 4, nvrId: 'nvr1', nvrChannelNumber: 1 },
+  { id: 'Cam-2', type: 'camera', name: 'Parking Lot Cam', ipAddress: '192.168.1.102', location: 'Exterior Parking', installationDate: new Date('2022-11-20'), status: 'inactive', screenChannelNumber: 2, zone: 'C', poeSwitchId: 'poe1', poePortNumber: 2, cameraType: 'bullet', quality: 5, nvrId: 'nvr1', nvrChannelNumber: 2 },
+  { id: 'Cam-3', type: 'camera', name: 'Office Cam 204', ipAddress: '192.168.2.55', location: 'Second Floor, Office 204', installationDate: new Date('2023-05-10'), status: 'active', screenChannelNumber: 3, zone: 'B', poeSwitchId: 'poe2', poePortNumber: 5, cameraType: 'ptz', quality: 8, nvrId: 'nvr2', nvrChannelNumber: 1 },
+  { id: 'Cam-4', type: 'camera', name: 'Rooftop East', ipAddress: '192.168.1.108', location: 'Rooftop', installationDate: new Date('2021-08-01'), status: 'error', screenChannelNumber: 4, zone: 'C', poeSwitchId: 'poe2', poePortNumber: 8, cameraType: 'bullet', quality: 3, nvrId: 'nvr2', nvrChannelNumber: 4 },
 ];
 
 const initialNVRs: NVR[] = [
@@ -262,18 +262,28 @@ export default function Home() {
       toast({ title: 'Device Updated', description: `Successfully updated ${finalValues.name}.` });
     } else {
       let newDevice: Device;
-      const id = crypto.randomUUID();
-      if (finalValues.deviceType === 'tv') {
-        newDevice = {
-          ...finalValues,
-          id,
-        } as TVScreen;
-      } else {
+      let id: string;
+
+      if (finalValues.deviceType === 'camera') {
+        const existingIds = cameras.map(c => parseInt(c.id.split('-')[1] || '0', 10));
+        const newIdNum = Math.max(0, ...existingIds) + 1;
+        id = `Cam-${newIdNum}`;
         newDevice = {
           ...finalValues,
           id,
           status: 'active',
-        } as CameraType | NVR | POESwitch;
+        } as CameraType;
+      } else {
+        id = crypto.randomUUID();
+        if (finalValues.deviceType === 'tv') {
+          newDevice = { ...finalValues, id } as TVScreen;
+        } else {
+          newDevice = {
+            ...finalValues,
+            id,
+            status: 'active',
+          } as NVR | POESwitch;
+        }
       }
 
 
@@ -380,7 +390,7 @@ export default function Home() {
     const nvrName = (id: string) => nvrMap[id]?.name || 'N/A';
 
     const getDetails = (d: Device) => {
-        let details: Record<string, any> = { ID: d.id.substring(0, 8).toUpperCase() };
+        let details: Record<string, any> = { ID: d.type === 'camera' ? d.id : d.id.substring(0, 8).toUpperCase() };
         if ('ipAddress' in d && d.ipAddress) details['IP'] = d.ipAddress;
         
         switch (d.type) {
