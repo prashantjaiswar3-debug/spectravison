@@ -83,7 +83,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Label } from '@/components/ui/label';
 import { DeviceForm } from '@/components/device-forms/DeviceForm';
-import { deviceFormSchema, type DeviceFormValues } from '@/components/device-forms/schemas';
+import { getDeviceFormSchema, type DeviceFormValues } from '@/components/device-forms/schemas';
 
 
 const initialCameras: CameraType[] = [
@@ -94,7 +94,7 @@ const initialCameras: CameraType[] = [
 ];
 
 const initialNVRs: NVR[] = [
-  { id: 'nvr1', type: 'nvr', name: 'Main NVR', ipAddress: '192.168.1.50', location: 'Server Room', status: 'active', storageCapacity: '16TB', channels: 16, switchId: 'poe1', switchPortNumber: 8 },
+  { id: 'nvr1', type: 'nvr', name: 'Main NVR', ipAddress: '192.168.1.50', location: 'Server Room', status: 'active', storageCapacity: '16TB', channels: 16 },
   { id: 'nvr2', type: 'nvr', name: 'Backup NVR', ipAddress: '192.168.1.51', location: 'Server Room', status: 'inactive', storageCapacity: '8TB', channels: 8 },
 ];
 
@@ -292,7 +292,7 @@ export default function Home() {
   };
 
   const handlePrintSticker = () => {
-    const printWindow = window.open('', '', 'height=400,width=600');
+    const printWindow = window.open('', '_blank', 'height=400,width=600');
     if (printWindow && stickerRef.current) {
         printWindow.document.write('<html><head><title>Print Sticker</title>');
         printWindow.document.write('<style>@media print { body { -webkit-print-color-adjust: exact; color-adjust: exact; } @page { size: 3.5in 2in; margin: 0; } } body { margin: 0; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100%; } .sticker { width: 336px; height: 192px; box-sizing: border-box; border: 1px solid #000; padding: 0; display: flex; flex-direction: column; background: white; color: black; } .header { text-align: center; padding: 8px; border-bottom: 2px solid #000; } .title { font-weight: bold; font-size: 1.5rem; } .location { font-size: 0.9rem; } .details-grid { display: grid; grid-template-columns: 1fr 1fr; flex-grow: 1; } .detail-item { padding: 4px 8px; border-right: 1px solid #ccc; border-bottom: 1px solid #ccc; font-size: 0.9rem; } .detail-item:nth-child(2n) { border-right: 0; } .detail-item:nth-last-child(1), .detail-item:nth-last-child(2) { border-bottom: 0; } .detail-key { font-weight: bold; } </style>');
@@ -301,15 +301,11 @@ export default function Home() {
         printWindow.document.write('</body></html>');
         printWindow.document.close();
         printWindow.focus();
-        setTimeout(() => {
-          printWindow.print();
-          printWindow.close();
-        }, 250);
     }
   };
 
   const handlePrintAllStickers = () => {
-    const printWindow = window.open('', '', 'height=800,width=800');
+    const printWindow = window.open('', '_blank', 'height=800,width=800');
     if (printWindow) {
       printWindow.document.write('<html><head><title>All Device Stickers</title>');
       printWindow.document.write('<style>@media print { body { -webkit-print-color-adjust: exact; color-adjust: exact; } } body { font-family: sans-serif; } .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(336px, 1fr)); gap: 0.5rem; } .sticker { width: 336px; height: 192px; box-sizing: border-box; border: 1px solid #000; padding: 0; display: flex; flex-direction: column; page-break-inside: avoid; background: white; color: black; } .header { text-align: center; padding: 8px; border-bottom: 2px solid #000; } .title { font-weight: bold; font-size: 1.5rem; } .location { font-size: 0.9rem; } .details-grid { display: grid; grid-template-columns: 1fr 1fr; flex-grow: 1; } .detail-item { padding: 4px 8px; border-right: 1px solid #ccc; border-bottom: 1px solid #ccc; font-size: 0.9rem; } .detail-item:nth-child(2n) { border-right: 0; } .detail-item:nth-last-child(1), .detail-item:nth-last-child(2) { border-bottom: 0; } .detail-key { font-weight: bold; } </style>');
@@ -327,10 +323,6 @@ export default function Home() {
       printWindow.document.write('</div></body></html>');
       printWindow.document.close();
       printWindow.focus();
-      setTimeout(() => {
-          printWindow.print();
-          printWindow.close();
-      }, 500);
     }
   };
   
@@ -349,7 +341,6 @@ export default function Home() {
                 break;
             case 'nvr':
                 details = { ...details, Storage: d.storageCapacity, Channels: d.channels };
-                if (d.switchId && d.switchPortNumber) details['Switch'] = `${poeSwitchName(d.switchId)}:${d.switchPortNumber}`;
                 break;
             case 'poe':
                  details = { ...details, Ports: `${d.portCount}${d.uplinkPortCount ? ` (+${d.uplinkPortCount} uplink)` : ''}` };
@@ -827,9 +818,7 @@ function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrint
             const nvrCameras = cameras.filter(c => c.nvrId === nvr.id);
             const nvrTvs = tvs.filter(t => t.nvrId === nvr.id);
             const poeSwitchIds = new Set(nvrCameras.map(c => c.poeSwitchId));
-            if (nvr.switchId) {
-                poeSwitchIds.add(nvr.switchId);
-            }
+            
 
             const poeTree = Array.from(poeSwitchIds).map(poeId => {
                 const poeSwitch = poeSwitches.find(p => p.id === poeId);
@@ -1064,4 +1053,6 @@ function DeviceTree({ devices, onEdit, onDelete, onStatusChange, onPing, onPrint
         </Card>
     )
 }
+    
+
     
