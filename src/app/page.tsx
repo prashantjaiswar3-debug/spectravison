@@ -32,7 +32,7 @@ import {
 import type { Camera as CameraType, NVR, POESwitch, Device, DeviceStatus, TVScreen, DeviceType, Todo } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from '@/components/ui/card';
 import {
   Table,
   TableHeader,
@@ -483,7 +483,7 @@ export default function Home() {
         <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8">
           <div className="flex items-center gap-3 mb-4 sm:mb-0">
             <Camera className="w-8 h-8 text-primary" />
-            <h1 className="text-3xl font-bold tracking-tight">CCTV Dashboard</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Spectra Vison</h1>
           </div>
           <div className="flex items-center gap-4">
             <div className="flex gap-2">
@@ -1288,4 +1288,5 @@ function IpChecklist({ devices, onPing, pinging }: { devices: Device[], onPing: 
     
 
     
+
 

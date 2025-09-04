@@ -3,7 +3,7 @@ import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 
 export const metadata: Metadata = {
-  title: 'CCTV Manager',
+  title: 'Spectra Vison',
   description: 'A practical asset management app for CCTV cameras.',
 };
 
