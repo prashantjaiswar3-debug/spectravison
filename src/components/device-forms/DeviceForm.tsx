@@ -54,9 +54,10 @@ export function DeviceForm({
     if (editingDevice) {
       defaultValues = {
         ...editingDevice,
+        // Ensure optional number fields that are bound to inputs have a fallback value
         switchPortNumber: editingDevice.type === 'nvr' ? editingDevice.switchPortNumber ?? '' : undefined,
         uplinkPortCount: editingDevice.type === 'poe' ? editingDevice.uplinkPortCount ?? '' : undefined,
-      } as any;
+      } as any; // Cast to any to handle discriminated union complexity
     } else {
       defaultValues = {
         deviceType,
