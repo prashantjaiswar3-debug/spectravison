@@ -54,8 +54,8 @@ export function DeviceForm({
     if (editingDevice) {
       defaultValues = {
         ...editingDevice,
-        switchPortNumber: editingDevice.type === 'nvr' ? editingDevice.switchPortNumber ?? '' : undefined,
-        uplinkPortCount: editingDevice.type === 'poe' ? editingDevice.uplinkPortCount ?? '' : undefined,
+        switchPortNumber: editingDevice.type === 'nvr' && editingDevice.switchPortNumber ? editingDevice.switchPortNumber : '',
+        uplinkPortCount: editingDevice.type === 'poe' && editingDevice.uplinkPortCount ? editingDevice.uplinkPortCount : '',
       } as any; 
     } else {
       defaultValues = {
@@ -68,7 +68,7 @@ export function DeviceForm({
           defaultValues = { ...defaultValues, ipAddress: '', installationDate: new Date(), screenChannelNumber: 1, zone: '', poeSwitchId: '', poePortNumber: 1, cameraType: 'dome', quality: 4, nvrId: '', nvrChannelNumber: 1 };
           break;
         case 'nvr':
-          defaultValues = { ...defaultValues, ipAddress: '', storageCapacity: '', channels: 16, switchId: '', switchPortNumber: '' };
+          defaultValues = { ...defaultValues, ipAddress: '', storageCapacity: '', details: '', channels: 16, switchId: '', switchPortNumber: '' };
           break;
         case 'poe':
           defaultValues = { ...defaultValues, portCount: 8, uplinkPortCount: '' };
@@ -85,10 +85,14 @@ export function DeviceForm({
     form.setValue('deviceType', deviceType);
   }, [deviceType, form]);
 
+  const handleSubmit = (values: DeviceFormValues) => {
+    onSubmit({ ...values, deviceType });
+  };
+
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
         <DialogHeader>
           <DialogTitle>{editingDevice ? `Edit ${deviceType.toUpperCase()}` : `Add New ${deviceType.charAt(0).toUpperCase() + deviceType.slice(1)}`}</DialogTitle>
           <DialogDescription>
