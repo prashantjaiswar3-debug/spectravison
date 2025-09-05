@@ -26,7 +26,6 @@ import {
   ArrowRight,
   ChevronDown,
   ListTodo,
-  ListChecks,
   ScanLine,
 } from 'lucide-react';
 
@@ -562,7 +561,6 @@ export default function Home() {
                       <TabsTrigger value="tvs"><Tv2 className="mr-2"/>TV Screens ({filteredTvScreens.length})</TabsTrigger>
                       <TabsTrigger value="tree"><ListTree className="mr-2"/>Device Tree</TabsTrigger>
                       <TabsTrigger value="todo"><ListTodo className="mr-2" />Todo List</TabsTrigger>
-                      <TabsTrigger value="ip_checklist"><ListChecks className="mr-2" />IP Checklist</TabsTrigger>
                       <TabsTrigger value="ip_scanner"><ScanLine className="mr-2" />IP Scanner</TabsTrigger>
                   </TabsList>
               </div>
@@ -596,9 +594,6 @@ export default function Home() {
                 </TabsContent>
                 <TabsContent value="todo">
                     <TodoList todos={todos} setTodos={setTodos} />
-                </TabsContent>
-                 <TabsContent value="ip_checklist">
-                    <IpChecklist devices={allDevices} onPing={(item) => handlePing(item)} pinging={pinging} />
                 </TabsContent>
                  <TabsContent value="ip_scanner">
                     <IpRangeScanner devices={allDevices} onPing={(item) => handlePing(item)} pinging={pinging} />
@@ -1233,69 +1228,6 @@ function TodoList({ todos, setTodos }: { todos: Todo[], setTodos: React.Dispatch
                         <p className="text-center text-muted-foreground py-8">No tasks yet. Add one above!</p>
                     )}
                 </div>
-            </CardContent>
-        </Card>
-    );
-}
-
-function IpChecklist({ devices, onPing, pinging }: { devices: Device[], onPing: (device: { id: string, name: string, ipAddress: string }) => void, pinging: Record<string, boolean> }) {
-    const ipList = useMemo(() => {
-        const ips = new Map<string, { id: string; name: string }>();
-        devices.forEach(device => {
-            if ('ipAddress' in device && device.ipAddress) {
-                if (!ips.has(device.ipAddress)) {
-                    ips.set(device.ipAddress, { id: device.id, name: device.name });
-                }
-            }
-        });
-        return Array.from(ips.entries()).map(([ip, { id, name }]) => ({ id, ipAddress: ip, name })).sort((a,b) => a.name.localeCompare(b.name));
-    }, [devices]);
-    
-    return (
-         <Card>
-            <CardHeader>
-                <CardTitle>IP Address Checklist</CardTitle>
-                <CardDescription>
-                   A list of all unique IP addresses found across your devices. Ping them to check their status.
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-                 <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Device Name</TableHead>
-                            <TableHead>IP Address</TableHead>
-                            <TableHead className="text-right">Action</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {ipList.length > 0 ? (
-                            ipList.map(item => (
-                                <TableRow key={item.ipAddress}>
-                                    <TableCell className="font-medium">{item.name}</TableCell>
-                                    <TableCell>{item.ipAddress}</TableCell>
-                                    <TableCell className="text-right">
-                                        <Button 
-                                            variant="outline" 
-                                            size="sm" 
-                                            onClick={() => onPing(item)} 
-                                            disabled={pinging[item.id] || pinging[item.ipAddress]}
-                                        >
-                                            {pinging[item.id] || pinging[item.ipAddress] ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wifi className="mr-2 h-4 w-4" />}
-                                            Ping
-                                        </Button>
-                                    </TableCell>
-                                </TableRow>
-                            ))
-                        ) : (
-                            <TableRow>
-                                <TableCell colSpan={3} className="text-center h-24">
-                                    No devices with IP addresses found.
-                                </TableCell>
-                            </TableRow>
-                        )}
-                    </TableBody>
-                </Table>
             </CardContent>
         </Card>
     );
