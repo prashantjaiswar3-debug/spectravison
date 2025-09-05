@@ -118,49 +118,12 @@ const initialTodos: Todo[] = [
     { id: crypto.randomUUID(), text: 'Replace faulty cable for Rooftop East', completed: true },
 ]
 
-function useStoredState<T>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] {
-    const [state, setState] = useState<T>(() => {
-        if (typeof window === 'undefined') {
-            return defaultValue;
-        }
-        try {
-            const item = window.localStorage.getItem(key);
-            if (item) {
-                // Special handling for dates
-                return JSON.parse(item, (k, v) => {
-                    if (k === 'installationDate' && typeof v === 'string') {
-                        const date = new Date(v);
-                        if (!isNaN(date.getTime())) {
-                            return date;
-                        }
-                    }
-                    return v;
-                });
-            }
-        } catch (error) {
-            console.error(`Error reading localStorage key "${key}":`, error);
-        }
-        return defaultValue;
-    });
-
-    useEffect(() => {
-        try {
-            window.localStorage.setItem(key, JSON.stringify(state));
-        } catch (error) {
-            console.error(`Error setting localStorage key "${key}":`, error);
-        }
-    }, [key, state]);
-
-    return [state, setState];
-}
-
-
 export default function Home() {
-  const [cameras, setCameras] = useStoredState<CameraType[]>('cctv_cameras', initialCameras);
-  const [nvrs, setNvrs] = useStoredState<NVR[]>('cctv_nvrs', initialNVRs);
-  const [poeSwitches, setPoeSwitches] = useStoredState<POESwitch[]>('cctv_poe_switches', initialPOESwitches);
-  const [tvScreens, setTvScreens] = useStoredState<TVScreen[]>('cctv_tv_screens', initialTVScreens);
-  const [todos, setTodos] = useStoredState<Todo[]>('cctv_todos', initialTodos);
+  const [cameras, setCameras] = useState<CameraType[]>(initialCameras);
+  const [nvrs, setNvrs] = useState<NVR[]>(initialNVRs);
+  const [poeSwitches, setPoeSwitches] = useState<POESwitch[]>(initialPOESwitches);
+  const [tvScreens, setTvScreens] = useState<TVScreen[]>(initialTVScreens);
+  const [todos, setTodos] = useState<Todo[]>(initialTodos);
 
   
   const [searchTerm, setSearchTerm] = useState('');
@@ -412,7 +375,7 @@ export default function Home() {
     const nvrName = (id: string) => nvrMap[id]?.name || 'N/A';
 
     const getDetails = (d: Device) => {
-        let details: Record<string, any> = { ID: d.type === 'camera' ? d.id : d.id.substring(0, 8).toUpperCase() };
+        let details: Record<string, any> = { ID: d.id };
         if ('ipAddress' in d && d.ipAddress) details['IP'] = d.ipAddress;
         
         switch (d.type) {
@@ -1366,4 +1329,6 @@ function IpRangeScanner({ devices, onPing, pinging }: { devices: (Device & { ipA
     );
 }
     
+    
+
     
